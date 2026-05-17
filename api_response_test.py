@@ -6,26 +6,24 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.llm_client import LLMClient
-from src.config import TRINITY_LARGE_MODEL, OPENROUTER_SITE_URL, OPENROUTER_SITE_TITLE
+from src.config import GEMINI_FLASH_MODEL
 from src.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 def test_single_api_call():
-    load_dotenv()
+    load_dotenv(override=True)
     
     print("=" * 60)
-    print("      OPENROUTER API RESPONSE TEST")
+    print("      GEMINI API RESPONSE TEST")
     print("=" * 60)
     
     client = LLMClient()
     
-    model = TRINITY_LARGE_MODEL
+    model = GEMINI_FLASH_MODEL
     prompt = "Reply with a short sentence about why AI is useful for research."
     
     print(f"Target Model: {model}")
-    print(f"Site URL:    {OPENROUTER_SITE_URL}")
-    print(f"Site Title:  {OPENROUTER_SITE_TITLE}")
     print("-" * 60)
     
     try:

@@ -10,8 +10,9 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from src.extractor import process_file
 from src.qa_engine import QAEngine
-from src.config import validate_config
+from src.config import validate_config, APP_PASSWORD
 from src.logging_utils import setup_logging
+import time
 from src.mermaid_renderer import MermaidCleaner, MermaidValidator, MERMAID_HTML_TEMPLATE, MERMAID_CDN, render_content_with_mermaid
 
 # Initialize logging at application startup
@@ -51,17 +52,8 @@ def sanitize_for_markdown(text: str) -> str:
 
 def render_confidence_badge(confidence: dict) -> None:
     """
-    Renders a colour-coded confidence percentage badge right-aligned
-    below the user's question bubble.
-
-    Score bands → colours:
-        85–100  Very High  →  Green   #22c55e
-        65–84   High       →  Blue    #3b82f6
-        45–64   Moderate   →  Amber   #f59e0b
-        25–44   Low        →  Orange  #f97316
-        0–24    Very Low   →  Red     #ef4444
-
-    Hovering the badge shows the reason tooltip.
+    Renders a colour-coded confidence percentage badge with 4-factor breakdown.
+    Displayed inside the assistant message bubble, after the answer.
     """
     score  = confidence.get("score", 50)
     level  = confidence.get("level", "Moderate")
@@ -77,18 +69,27 @@ def render_confidence_badge(confidence: dict) -> None:
     colour = colour_map.get(level, "#94a3b8")
 
     badge_html = f"""
-    <div class="confidence-wrapper">
-        <span
-            class="confidence-badge"
-            style="background-color: {colour};"
-            title="Confidence: {level} — {reason}"
-        >
-            <strong>{score}%</strong>
-        </span>
-        <span class="confidence-label">AI Confidence</span>
+    <div>
+        <div class="confidence-wrapper">
+            <span
+                class="confidence-badge"
+                style="background-color: {colour};"
+                title="{level} — {reason}"
+            >
+                <strong>{score}%</strong>
+            </span>
+            <span class="confidence-label">AI Confidence</span>
+        </div>
     </div>
     """
     st.markdown(badge_html, unsafe_allow_html=True)
+
+
+def strip_image_prompts(text: str) -> str:
+    """Remove <image_prompt>...</image_prompt> tags from content so images don't appear in chat."""
+    if not text:
+        return text
+    return re.sub(r"<image_prompt>.*?</image_prompt>", "", text, flags=re.DOTALL).strip()
 
 
 def _clean_for_speech(text):
@@ -113,133 +114,30 @@ def _clean_for_speech(text):
     return text.strip()
 
 
-def render_voice_controller():
-    """Injects a self-healing persistent Microphone icon into the chat bar."""
+def render_mic_input():
+    """Renders a compact mic input button."""
+    if st.button("🎙️", help="Click to speak your question", key="mic_btn_compact"):
+        try:
+            import speech_recognition as sr
+        except ImportError:
+            st.warning("🎙️ Voice input requires: `pip install SpeechRecognition PyAudio`")
+            return
 
-    html = f"""  # noqa: F541
-    <div style="display:none">
-        <script>
-            // Persistent state
-            var recognition = null;
-            var isRecording = false;
-            
-            // Debug logging
-            console.log("Voice controller: Starting initialization...");
-            
-            const WinParent = window.parent;
-            console.log("Voice controller: WinParent =", WinParent ? "available" : "null");
-            
-            if (WinParent && (WinParent.webkitSpeechRecognition || WinParent.SpeechRecognition)) {{
-                console.log("Voice controller: Speech Recognition API available");
-                const SpeechRecognition = WinParent.SpeechRecognition || WinParent.webkitSpeechRecognition;
-                recognition = new SpeechRecognition();
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                recognition.lang = 'en-US';
-                
-                recognition.onstart = function() {{ isRecording = true; updateBtnUI(true); }};
-                recognition.onend = function() {{ isRecording = false; updateBtnUI(false); }};
-                recognition.onerror = function() {{ isRecording = false; updateBtnUI(false); }};
-                recognition.onresult = function(event) {{
-                    injectToChat(event.results[0][0].transcript);
-                }};
-            }} else {{
-                console.log("Voice controller: Speech Recognition API NOT available in this browser");
-            }}
-            
-            function updateBtnUI(recording) {{
-                if (!WinParent) return;
-                var btns = WinParent.document.querySelectorAll('.voice-btn-mic');
-                if (btns.length > 0) {{
-                    btns.forEach(function(btn) {{
-                        if(recording) btn.classList.add('recording');
-                        else btn.classList.remove('recording');
-                    }});
-                }}
-            }}
-            
-            function injectToChat(text) {{
-                if (!WinParent) return;
-                const ta = WinParent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
-                if (ta) {{
-                    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-                    nativeSetter.call(ta, text);
-                    ta.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    ta.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    setTimeout(() => {{
-                        const submitBtn = WinParent.document.querySelector('button[data-testid="stChatInputSubmitButton"]');
-                        if (submitBtn) submitBtn.click();
-                    }}, 300);
-                }}
-            }}
-            
-            function toggleMic() {{
-                if (!recognition) {{ alert("Voice input not supported in this browser."); return; }}
-                if (isRecording) recognition.stop();
-                else recognition.start();
-            }}
-
-            function injectButtons() {{
-                if (!WinParent) {{
-                    console.log("Voice controller: No parent window, skipping injection");
-                    return;
-                }}
-                
-                // Target the chat bar - try multiple selectors for compatibility
-                let chatBar = WinParent.document.querySelector('[data-testid="stChatInput"] div[role="presentation"]');
-                if (!chatBar) {{
-                    chatBar = WinParent.document.querySelector('.stChatInput');
-                }}
-                if (!chatBar) {{
-                    chatBar = WinParent.document.querySelector('[data-testid="stChatInput"]');
-                }}
-                if (!chatBar) {{
-                    // Try even more selectors for newer Streamlit versions
-                    chatBar = WinParent.document.querySelector('.stTextInput');
-                }}
-                if (!chatBar) {{
-                    console.log("Voice controller: Chat input not found, selectors tried");
-                    return;
-                }}
-
-                console.log("Voice controller: Chat bar found, checking for mic button...");
-
-                // Check if the button is MISSING
-                if (!chatBar.querySelector('.voice-btn-mic')) {{
-                    console.log("Voice controller: Injecting mic button...");
-                    
-                    const container = WinParent.document.createElement('div');
-                    container.className = 'voice-btn-container';
-                    
-                    const micBtn = WinParent.document.createElement('div');
-                    micBtn.className = 'voice-btn voice-btn-mic';
-                    micBtn.innerHTML = '🎙️';
-                    micBtn.title = "Voice Input - Click to speak";
-                    micBtn.onclick = function(e) {{ e.stopPropagation(); toggleMic(); }};
-                    
-                    container.appendChild(micBtn);
-                    
-                    // Try to prepend to the chat bar (so it shows up on the left)
-                    if (chatBar.firstChild) {{
-                        chatBar.insertBefore(container, chatBar.firstChild);
-                    }} else {{
-                        chatBar.appendChild(container);
-                    }}
-                    console.log("Voice controller: Mic button injected successfully!");
-                }}
-            }}
-            
-            // Start the injection process
-            console.log("Voice controller: Setting up interval...");
-            if (!WinParent.docmindMicInterval) {{
-                WinParent.docmindMicInterval = setInterval(injectButtons, 1000);
-                // Try immediately and then every second
-                setTimeout(injectButtons, 500);
-            }}
-        </script>
-    </div>
-    """
-    components.html(html, height=0, width=0)
+        try:
+            recognizer = sr.Recognizer()
+            recognizer.energy_threshold = 300
+            recognizer.dynamic_energy_threshold = True
+            with sr.Microphone() as source:
+                with st.spinner("🎤 Listening..."):
+                    recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                    audio = recognizer.listen(source, timeout=10, phrase_time_limit=15)
+            with st.spinner("📝..."):
+                text = recognizer.recognize_google(audio)
+                if text:
+                    st.session_state["mic_text"] = text
+                    st.rerun()
+        except Exception as e:
+            st.warning(f"🎙️ Error: {str(e)}")
 
 
 def speak_text(text, key):
@@ -252,9 +150,10 @@ def speak_text(text, key):
         .replace("\n", " ")
         .replace("\r", "")
     )
-    # Truncate for very long content to avoid browser limits
+    # Truncate for long content
     if len(safe) > 5000:
-        safe = safe[:5000] + "... Content truncated for audio playback."
+        safe = safe[:5000] + "... Content truncated."
+    
     html = f"""
     <div style="margin: 4px 0;">
         <button id="tts-btn-{key}" onclick="toggleSpeech_{key}()" style="
@@ -262,41 +161,57 @@ def speak_text(text, key):
             color: #a8edea; border: 1px solid #4a45a0; border-radius: 8px;
             padding: 6px 16px; cursor: pointer; font-size: 0.8rem;
             font-weight: 600; font-family: Inter, sans-serif;
-            transition: all 0.2s ease;
-        " onmouseover="this.style.background='linear-gradient(135deg,#4a45a0,#302b63)'"
-           onmouseout="this.style.background='linear-gradient(135deg,#302b63,#24243e)'">
-            🔊 Listen
+            transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px;
+        ">
+            <span id="tts-icon-{key}">🔊</span> <span id="tts-label-{key}">Listen</span>
         </button>
     </div>
     <script>
+        var synth_{key} = window.speechSynthesis;
         var speaking_{key} = false;
         var utterance_{key} = null;
+
         function toggleSpeech_{key}() {{
             var btn = document.getElementById('tts-btn-{key}');
+            var icon = document.getElementById('tts-icon-{key}');
+            var label = document.getElementById('tts-label-{key}');
+
             if (speaking_{key}) {{
-                window.speechSynthesis.cancel();
+                synth_{key}.cancel();
                 speaking_{key} = false;
-                btn.innerHTML = '🔊 Listen';
+                label.innerHTML = 'Listen';
+                icon.innerHTML = '🔊';
                 btn.style.borderColor = '#4a45a0';
             }} else {{
-                window.speechSynthesis.cancel();
-                utterance_{key} = new SpeechSynthesisUtterance('{safe}');
+                synth_{key}.cancel(); // Interrupt any ongoing speech
+                utterance_{key} = new SpeechSynthesisUtterance("{safe}");
                 utterance_{key}.rate = 1.0;
                 utterance_{key}.pitch = 1.0;
+                
                 utterance_{key}.onend = function() {{
                     speaking_{key} = false;
-                    btn.innerHTML = '🔊 Listen';
+                    label.innerHTML = 'Listen';
+                    icon.innerHTML = '🔊';
                     btn.style.borderColor = '#4a45a0';
                 }};
-                window.speechSynthesis.speak(utterance_{key});
+                
+                utterance_{key}.onerror = function(event) {{
+                    console.error('TTS Error:', event);
+                    speaking_{key} = false;
+                    label.innerHTML = 'Error';
+                    icon.innerHTML = '⚠️';
+                }};
+
+                synth_{key}.speak(utterance_{key});
                 speaking_{key} = true;
-                btn.innerHTML = '⏹️ Stop';
+                label.innerHTML = 'Stop';
+                icon.innerHTML = '⏹️';
                 btn.style.borderColor = '#a8edea';
             }}
         }}
     </script>
     """
-    components.html(html, height=42)
+    components.html(html, height=45)
 
 
 st.set_page_config(
@@ -316,6 +231,57 @@ if not is_valid:
         "Please set up your .env file with a valid OpenRouter API key. Copy .env.example to .env and add your key."
     )
     st.stop()
+
+# ==================== AUTHENTICATION & RATE LIMITING ====================
+
+# Basic Password Protection
+if APP_PASSWORD:
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.markdown(
+            """
+            <div style="text-align: center; margin-top: 50px;">
+                <h1>🔬 AI Powered Document Q&A</h1>
+                <p style="color: #a8edea;">Please enter the designated password to access the system.</p>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        password_col1, password_col2, password_col3 = st.columns([1, 2, 1])
+        with password_col2:
+            st.warning("⚠️ **Security Notice:** The system runs on a shared LLM API key. Access is restricted.", icon="🔒")
+            pwd_input = st.text_input("Enter Password", type="password")
+            if st.button("Access System", use_container_width=True):
+                if pwd_input == APP_PASSWORD:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password.")
+        st.stop()
+
+
+# Simple Rate Limiter
+if "rate_limits" not in st.session_state:
+    st.session_state.rate_limits = {
+        "upload": [],
+        "chat": [],
+        "voice": []
+    }
+
+def check_rate_limit(action: str, max_requests: int, window_seconds: int = 60) -> bool:
+    """Enforces rate limiting on a specific action for the current user session."""
+    now = time.time()
+    # Filter to only keep requests within the sliding window
+    history = [t for t in st.session_state.rate_limits[action] if now - t < window_seconds]
+    st.session_state.rate_limits[action] = history
+    
+    if len(history) >= max_requests:
+        return False
+        
+    st.session_state.rate_limits[action].append(now)
+    return True
 
 CUSTOM_CSS = """
 <style>
@@ -352,6 +318,13 @@ div[data-testid="stMarkdownContainer"] {
     overflow-x: hidden;
 }
 
+/* Enhanced Justification Class */
+.justified-text {
+    text-align: justify !important;
+    text-justify: inter-word;
+    line-height: 1.8;
+}
+
 /* Fix for source cards scrolling */
 .source-card {
     overflow-wrap: break-word;
@@ -363,65 +336,52 @@ div[data-testid="stMarkdownContainer"] {
     background-color: #0f0c29;
 }
 
-/* Voice Interaction UI */
-/* Target chat input in various Streamlit versions */
-[data-testid="stChatInput"],
-[data-testid="stChatInput"] > div,
-.stChatInput,
-.stChatInput > div,
-.stChatInputContainer,
-.stChatInputContainer > div,
-section[data-testid="stChatInput"],
-div[data-testid="stChatInput"] {
-    position: relative !important;
-    padding-right: 120px !important;
+/* Voice Interaction UI — mic button inside chat input bar */
+/* Position the mic button fixed at the bottom-right, overlaying the chat input bar */
+[data-testid="stBottom"] {
+    position: relative;
 }
 
-/* Target the input element itself */
-div[data-testid="stChatInput"] input,
-.stChatInput input,
-.stTextInput input {
-    padding-right: 80px !important;
-}
-
-.voice-btn-container {
-    position: absolute;
-    right: 60px;
-    bottom: 10px;
-    display: flex;
-    gap: 8px;
+/* Style the mic button container to sit inside the chat input */
+.mic-overlay-btn {
+    position: fixed;
+    bottom: 16px;
+    right: 80px;
     z-index: 9999999;
-    pointer-events: auto;
 }
 
-.voice-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #302b63, #24243e);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    border: 1px solid #4a45a0;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    font-size: 1.2rem;
-    user-select: none;
+.mic-overlay-btn button {
+    width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    border-radius: 50% !important;
+    background: linear-gradient(135deg, #302b63, #24243e) !important;
+    color: white !important;
+    border: 1px solid #4a45a0 !important;
+    padding: 0 !important;
+    font-size: 1.15rem !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
-.voice-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(118, 75, 162, 0.4);
+.mic-overlay-btn button:hover {
+    transform: scale(1.12) !important;
+    box-shadow: 0 4px 14px rgba(118, 75, 162, 0.5) !important;
+    border-color: #a8edea !important;
 }
 
-.voice-btn:active {
-    transform: scale(0.9);
+.mic-overlay-btn button:active {
+    transform: scale(0.93) !important;
 }
 
-.voice-btn.recording {
-    background: linear-gradient(135deg, #ff416c, #ff4b2b);
-    animation: pulse-red 1.5s infinite;
+/* Add right padding to chat input so text doesn't go behind mic button */
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] input {
+    padding-right: 100px !important;
 }
 
 @keyframes pulse-red {
@@ -964,7 +924,9 @@ with st.sidebar:
     )
 
     if st.button("🚀 Process Documents", use_container_width=True):
-        if uploaded_files:
+        if not check_rate_limit("upload", max_requests=5, window_seconds=60):
+            st.error("⏳ Rate limit exceeded. Please wait before uploading more documents.")
+        elif uploaded_files:
             # Check for concurrent processing lock
             if st.session_state.processing_lock:
                 st.warning(
@@ -1037,32 +999,6 @@ with st.sidebar:
             st.warning("Please upload at least one file.")
 
     st.divider()
-    if st.session_state.topics_found:
-        st.divider()
-        st.markdown("### 🗂️ Identified Topics")
-        for filename, topics in st.session_state.topics_found.items():
-            st.markdown(f"**{filename}**")
-            unique_topics = list(dict.fromkeys(topics))
-            topic_html = "".join(
-                [f'<span class="topic-chip">{t}</span>' for t in unique_topics]
-            )
-            st.markdown(topic_html, unsafe_allow_html=True)
-
-    if st.session_state.system_ready:
-        st.divider()
-        stats = st.session_state.ai_engine.get_session_stats()
-        st.markdown("### 📊 Session Analytics")
-        st.markdown(
-            f"""
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-value">{stats['questions_asked']}</div><div class="stat-label">Questions</div></div>
-            <div class="stat-card"><div class="stat-value">{stats['topics_accessed']}</div><div class="stat-label">Topics Hit</div></div>
-            <div class="stat-card"><div class="stat-value">{stats['sources_used']}</div><div class="stat-label">Sources</div></div>
-            <div class="stat-card"><div class="stat-value">{stats['total_topics']}</div><div class="stat-label">Total Topics</div></div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
 
     if st.session_state.chat_history:
         st.divider()
@@ -1123,8 +1059,6 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    render_voice_controller()
-
     if (
         st.session_state.system_ready
     ):  # Changed from uploaded_file to system_ready to match existing logic
@@ -1149,16 +1083,11 @@ if not st.session_state.system_ready:
             Upload your documents in the sidebar to begin. The system will automatically
             segment topics, generate insights, and prepare for your research questions.
         </p>
-        <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; max-width: 700px; margin-left: auto; margin-right: auto;">
+        <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 700px; margin-left: auto; margin-right: auto;">
             <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
                 <div style="font-size: 1.8rem;">📄</div>
                 <div style="color: #a8edea; font-size: 0.85rem; font-weight: 600; margin-top: 8px;">Document Q&A</div>
                 <div style="color: #666; font-size: 0.72rem; margin-top: 4px;">Ask any question</div>
-            </div>
-            <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
-                <div style="font-size: 1.8rem;">💡</div>
-                <div style="color: #f0c87e; font-size: 0.85rem; font-weight: 600; margin-top: 8px;">Suggestions</div>
-                <div style="color: #666; font-size: 0.72rem; margin-top: 4px;">Get improvements</div>
             </div>
             <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
                 <div style="font-size: 1.8rem;">🔬</div>
@@ -1176,122 +1105,128 @@ if not st.session_state.system_ready:
         unsafe_allow_html=True,
     )
 else:
-    # ─── Document Overview Tab & Suggestions Tab & IEEE Metadata Tab & Chat Tab ───
-    if st.session_state.doc_overview or st.session_state.auto_suggestions:
-        tab_overview, tab_suggestions, tab_ieee, tab_chat = st.tabs(
-            [
-                "📄 Document Overview",
-                "💡 AI Suggestions",
-                "📝 IEEE Metadata",
-                "💬 Document Chat",
-            ]
-        )
+    # ─── Chat Tab & Document Overview Tab ───
+    # --- Main Navigation ---
+    tab_labels = ["💬 Chat", "📄 Overview"]
+    active_tab = st.radio("Navigation", tab_labels, horizontal=True, label_visibility="collapsed")
+    st.divider()
 
-        with tab_overview:
-            if st.session_state.doc_overview == "ERROR: API_RATE_LIMIT_EXCEEDED":
-                st.error("🚫 **Daily Rate Limit Reached (OpenRouter Free Tier)**")
-                st.info("OpenRouter limits free model usage. To fix this:\n1. **Add credits** to your OpenRouter account.\n2. **Wait 24 hours** for the quota to reset.\n\n*Note: You can still try using the 'Document Chat' tab if you have remaining quota for that model.*")
-            elif st.session_state.doc_overview:
-                speak_text(st.session_state.doc_overview, "overview")
-                render_content_with_mermaid(st.session_state.doc_overview)
-            else:
-                st.info("No overview generated yet.")
-
-        with tab_suggestions:
-            if st.session_state.auto_suggestions == ["ERROR: API_RATE_LIMIT_EXCEEDED"]:
-                 st.error("🚫 **AI Suggestions Unavailable** (Rate Limit Reached)")
-            elif st.session_state.auto_suggestions:
-                st.markdown("### 💡 AI-Generated Research Suggestions")
-                st.caption(
-                    "These suggestions were auto-generated by analyzing your documents."
-                )
-                for i, s in enumerate(st.session_state.auto_suggestions):
-                    if isinstance(s, dict):
-                        cat = s.get("category", "general")
-                        cat_class = (
-                            f"cat-{cat}"
-                            if cat
-                            in [
-                                "improvement",
-                                "innovation",
-                                "gap",
-                                "research",
-                                "optimization",
-                            ]
-                            else "cat-improvement"
-                        )
-                        st.markdown(
-                            f"**{i+1}. {s.get('title', f'Suggestion {i+1}')}**"
-                        )
-                        st.markdown(f"{s.get('description', 'No description available.')}")
-                        st.markdown(f'<span class="suggestion-cat {cat_class}">{cat.upper()}</span>', unsafe_allow_html=True)
-                        st.divider()
-            else:
-                st.info("No suggestions generated yet.")
-
-            if st.session_state.auto_suggestions and st.session_state.auto_suggestions != ["ERROR: API_RATE_LIMIT_EXCEEDED"]:
-                all_sug_text = " ".join(
-                    [
-                        f"{s.get('title','')}: {s.get('description','')}"
-                        for s in st.session_state.auto_suggestions if isinstance(s, dict)
-                    ]
-                )
-                speak_text(all_sug_text, "suggestions")
-
-        with tab_ieee:
-            st.markdown("### 📝 IEEE Paper Metadata")
-            st.caption(
-                "Provide information for the official IEEE paper generation."
+    if active_tab == "📄 Overview":
+        if st.session_state.doc_overview:
+            # Render with justify alignment using the new class
+            overview_display = strip_image_prompts(st.session_state.doc_overview)
+            st.markdown(
+                f"""
+                <div class="justified-text">
+                {overview_display}
+                </div>
+                """,
+                unsafe_allow_html=True
             )
-            st.session_state.ieee_metadata["title"] = st.text_input(
-                "Paper Title",
-                st.session_state.ieee_metadata["title"],
-                key="ieee_title",
-            )
-            st.session_state.ieee_metadata["authors"] = st.text_area(
-                "Team Members (Names)",
-                st.session_state.ieee_metadata["authors"],
-                placeholder="John Doe, Jane Smith...",
-                key="ieee_authors",
-            )
-            st.session_state.ieee_metadata["emails"] = st.text_area(
-                "Official Emails",
-                st.session_state.ieee_metadata["emails"],
-                placeholder="john@college.edu, jane@college.edu",
-                key="ieee_emails",
-            )
-            st.session_state.ieee_metadata["colleges"] = st.text_area(
-                "Colleges / Organizations",
-                st.session_state.ieee_metadata["colleges"],
-                key="ieee_colleges",
-            )
-            st.session_state.ieee_metadata["additional_notes"] = st.text_area(
-                "Additional Project Notes",
-                st.session_state.ieee_metadata["additional_notes"],
-                key="ieee_notes",
-            )
+            speak_text(st.session_state.doc_overview, "overview")
+        else:
+            st.info("No overview generated yet.")
+        user_q = None
 
-            if st.checkbox("Ready for Generation"):
-                st.info(
-                    "You can now ask the AI to 'Generate an IEEE paper' in the Document Chat tab."
-                )
-
-    else:
-        tab_chat = st.container()
-        tab_overview = None
-        tab_suggestions = None
-        tab_ieee = None
-
-    # ─── Chat Interface ───
-    # Always use a dedicated container for chat to ensure proper layout
-    chat_container = st.container()
-    
-    with chat_container:
-        # Render existing history FIRST so input stays at the bottom
+    elif active_tab == "💬 Chat":
+        # Render existing history
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 if msg.get("intent") and msg["role"] == "assistant":
                     intent = msg["intent"]
+                    intent_class = f"intent-{intent.get('intent', 'document_qa')}"
+                    st.markdown(f'<div class="intent-badge {intent_class}">{intent.get("emoji", "📄")} {intent.get("label", "Document Q&A")}</div>', unsafe_allow_html=True)
+                
+                if msg.get("reasoning_details") and msg["role"] == "assistant":
+                    with st.expander("🧠 View Logic Trace"):
+                        st.text(msg["reasoning_details"])
+
+                display_content = strip_image_prompts(msg["content"])
+                msg_intent = msg.get("intent", {}).get("intent") if isinstance(msg.get("intent"), dict) else msg.get("intent")
+                if msg_intent != "off_topic":
+                    render_content_with_mermaid(display_content)
+                else:
+                    st.markdown(display_content)
+
+                if msg["role"] == "assistant":
+                    speak_text(msg["content"], f"hist_{id(msg)}")
+
+                if msg.get("confidence") is not None and msg["role"] == "assistant":
+                    render_confidence_badge(msg["confidence"])
+
+                if msg.get("sources") and msg["role"] == "assistant":
+                    with st.expander(f"📚 Sources Referenced ({len(msg['sources'])})"):
+                        for src in msg["sources"]:
+                            st.markdown(f"""
+                            <div class="source-card">
+                                <div class="source-header">
+                                    <span class="source-file">{sanitize_for_markdown(src.get('file', ''))}</span>
+                                    <span class="source-score">{src['score']}</span>
+                                </div>
+                                <div class="source-topic">{sanitize_for_markdown(src.get('topic', ''))}</div>
+                                <div class="source-preview">{sanitize_for_markdown(src.get('preview', ''))}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                if msg["role"] == "assistant" and msg.get("intent", {}).get("intent") == "ieee_paper_gen":
+                    ieee_docx = generate_ieee_docx(msg["content"], st.session_state.ieee_metadata)
+                    st.download_button(label="📄 Download IEEE Official Paper (.docx)", data=ieee_docx, file_name=f"IEEE_Paper.docx", key=f"dl_ieee_{id(msg)}", use_container_width=True)
+
+        # --- Question bar below the answers with mic inside the bar ---
+        mic_text = st.session_state.pop("mic_text", None)
+        
+        # Chat input — Streamlit pins this to bottom automatically
+        user_q = st.chat_input(
+            "Ask about your documents, request suggestions, or propose research add-ons...",
+            max_chars=MAX_CHAT_INPUT_LENGTH,
+            key="chat_input_main"
+        )
+        # Mic button overlaid on the chat input bar via fixed CSS positioning
+        st.markdown('<div class="mic-overlay-btn">', unsafe_allow_html=True)
+        render_mic_input()
+        st.markdown('</div>', unsafe_allow_html=True)
+            
+        if mic_text and not user_q:
+            user_q = mic_text
+    else:
+        user_q = None
+
+    if user_q:
+        if not check_rate_limit("chat", max_requests=10, window_seconds=60):
+            st.error("⏳ Rate limit exceeded. Please wait before sending more messages.")
+            st.stop()
+        if len(user_q) > MAX_CHAT_INPUT_LENGTH:
+            st.error(
+                f"Input too long. Maximum {MAX_CHAT_INPUT_LENGTH} characters allowed."
+            )
+            st.rerun()
+        if not user_q.strip():
+            st.warning("Please enter a valid question.")
+            st.rerun()
+
+        st.session_state.chat_history.append(
+            {"role": "user", "content": user_q}
+        )
+
+        with st.chat_message("user"):
+            st.markdown(user_q)
+
+        with st.chat_message("assistant"):
+            stream_meta = {}
+            final_data = {}
+            confidence_result = None
+
+            response_container = st.empty()
+            streamed_text = ""
+
+            for event in st.session_state.ai_engine.get_answer_stream(
+                user_q,
+                st.session_state.chat_history[:-1],
+                metadata=st.session_state.ieee_metadata,
+            ):
+                if event["type"] == "meta":
+                    stream_meta = event
+                    intent = event.get("intent", {})
                     intent_class = (
                         f"intent-{intent.get('intent', 'document_qa')}"
                     )
@@ -1299,208 +1234,88 @@ else:
                         f'<div class="intent-badge {intent_class}">{intent.get("emoji", "📄")} {intent.get("label", "Document Q&A")}</div>',
                         unsafe_allow_html=True,
                     )
-                if msg.get("reasoning_details") and msg["role"] == "assistant":
-                    with st.expander("🧠 View Logic Trace"):
-                        st.text(msg["reasoning_details"])
-                
-                # Only render Mermaid diagrams if NOT off_topic
-                msg_intent = msg.get("intent", {}).get("intent") if isinstance(msg.get("intent"), dict) else msg.get("intent")
-                if msg_intent != "off_topic":
-                    render_content_with_mermaid(msg["content"])
-                else:
-                    st.markdown(msg["content"])
+                    confidence_result = event.get("confidence")
+                elif event["type"] == "token":
+                    streamed_text += event["token"]
+                    response_container.markdown(streamed_text + "▌")
+                elif event["type"] == "confidence_update":
+                    confidence_result = event.get("confidence", confidence_result)
+                elif event["type"] == "done":
+                    final_data = event
 
-                if msg["role"] == "assistant":
-                    speak_text(msg["content"], f"hist_{id(msg)}")
-                
-                # Render confidence badge for user messages that have confidence
-                if msg.get("confidence") and msg["role"] == "user":
-                    render_confidence_badge(msg["confidence"])
-                
-                if msg.get("sources") and msg["role"] == "assistant":
-                    with st.expander(
-                        f"📚 Sources Referenced ({len(msg['sources'])})"
-                    ):
-                        for src in msg["sources"]:
-                            # Sanitize user-provided source data
-                            safe_file = sanitize_for_markdown(
-                                src.get("file", "")
-                            )
-                            safe_topic = sanitize_for_markdown(
-                                src.get("topic", "")
-                            )
-                            safe_preview = sanitize_for_markdown(
-                                src.get("preview", "")
-                            )
-                            st.markdown(
-                                f"""
-                            <div class="source-card">
-                                <div class="source-header">
-                                    <span class="source-file">{safe_file}</span>
-                                    <span class="source-score">{src['score']}</span>
-                                </div>
-                                <div class="source-topic">{safe_topic}</div>
-                                <div class="source-preview">{safe_preview}</div>
-                            </div>
-                            """,
-                                unsafe_allow_html=True,
-                            )
+            final_content = final_data.get("content", streamed_text)
+            response_container.empty()
 
-                # IEEE Download Button (History)
-                if (
-                    msg["role"] == "assistant"
-                    and msg.get("intent", {}).get("intent") == "ieee_paper_gen"
+            # Strip image prompts from displayed content
+            display_final = strip_image_prompts(final_content)
+            if stream_meta.get("intent", {}).get("intent") != "off_topic":
+                render_content_with_mermaid(display_final)
+            else:
+                st.markdown(display_final)
+
+            speak_text(final_content, "stream_latest")
+
+            reasoning = final_data.get("reasoning")
+            if reasoning:
+                with st.expander("🧠 View Logic Trace"):
+                    st.text(reasoning)
+
+            # Confidence badge — rendered AFTER answer content
+            if confidence_result is not None:
+                render_confidence_badge(confidence_result)
+
+            sources = stream_meta.get("sources", [])
+            if sources:
+                with st.expander(
+                    f"📚 Sources Referenced ({len(sources)})"
                 ):
-                    ieee_docx = generate_ieee_docx(
-                        msg["content"], st.session_state.ieee_metadata
-                    )
-                    st.download_button(
-                        label="📄 Download IEEE Official Paper (.docx)",
-                        data=ieee_docx,
-                        file_name=f"IEEE_Paper_{st.session_state.ieee_metadata.get('title', 'Generated').replace(' ', '_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_ieee_{id(msg)}",
-                        use_container_width=True,
-                    )
-
-        render_voice_controller()
-
-        # --- CHAT INPUT & PROCESSING (Placed at the bottom) ---
-        user_q = st.chat_input(
-            "Ask about your documents, request suggestions, or propose research add-ons...",
-            max_chars=MAX_CHAT_INPUT_LENGTH
-        )
-        if user_q:
-            # Validate input length
-            if len(user_q) > MAX_CHAT_INPUT_LENGTH:
-                st.error(
-                    f"Input too long. Maximum {MAX_CHAT_INPUT_LENGTH} characters allowed."
-                )
-                st.rerun()
-            if not user_q.strip():
-                st.warning("Please enter a valid question.")
-                st.rerun()
-
-            st.session_state.chat_history.append(
-                {"role": "user", "content": user_q}
-            )
-
-            with st.chat_message("user"):
-                st.markdown(user_q)
-
-            with st.chat_message("assistant"):
-                stream_meta = {}
-                final_data = {}
-                confidence_result = None  # Store confidence for user message
-                
-                # Use an empty slot for streaming to allow overwriting content
-                response_container = st.empty()
-                streamed_text = ""
-
-                # Pass IEEE metadata to the engine
-                for event in st.session_state.ai_engine.get_answer_stream(
-                    user_q,
-                    st.session_state.chat_history[:-1],
-                    metadata=st.session_state.ieee_metadata,
-                ):
-                    if event["type"] == "meta":
-                        stream_meta = event
-                        intent = event.get("intent", {})
-                        intent_class = (
-                            f"intent-{intent.get('intent', 'document_qa')}"
+                    for src in sources:
+                        safe_file = sanitize_for_markdown(
+                            src.get("file", "")
+                        )
+                        safe_topic = sanitize_for_markdown(
+                            src.get("topic", "")
+                        )
+                        safe_preview = sanitize_for_markdown(
+                            src.get("preview", "")
                         )
                         st.markdown(
-                            f'<div class="intent-badge {intent_class}">{intent.get("emoji", "📄")} {intent.get("label", "Document Q&A")}</div>',
+                            f"""
+                        <div class="source-card">
+                            <div class="source-header">
+                                <span class="source-file">{safe_file}</span>
+                                <span class="source-score">{src['score']}</span>
+                            </div>
+                            <div class="source-topic">{safe_topic}</div>
+                            <div class="source-preview">{safe_preview}</div>
+                        </div>
+                        """,
                             unsafe_allow_html=True,
                         )
-                        # Store confidence from meta event
-                        confidence_result = event.get("confidence")
-                    elif event["type"] == "token":
-                        streamed_text += event["token"]
-                        # Overwrite the empty slot with the current text
-                        response_container.markdown(streamed_text + "▌")
-                    elif event["type"] == "done":
-                        final_data = event
 
-                final_content = final_data.get("content", streamed_text)
-                # Clear the streaming placeholder
-                response_container.empty()
-                
-                # Render final content - Only if NOT off_topic
-                if stream_meta.get("intent", {}).get("intent") != "off_topic":
-                    render_content_with_mermaid(final_content)
-                else:
-                    st.markdown(final_content)
-                
-                speak_text(final_content, "stream_latest")
+            if (
+                stream_meta.get("intent", {}).get("intent")
+                == "ieee_paper_gen"
+            ):
+                ieee_docx = generate_ieee_docx(
+                    final_content, st.session_state.ieee_metadata
+                )
+                st.download_button(
+                    label="📄 Download IEEE Official Paper (.docx)",
+                    data=ieee_docx,
+                    file_name=f"IEEE_Paper_{st.session_state.ieee_metadata.get('title', 'Generated').replace(' ', '_')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="dl_ieee_latest",
+                    use_container_width=True,
+                )
 
-                reasoning = final_data.get("reasoning")
-                if reasoning:
-                    with st.expander("🧠 View Logic Trace"):
-                        st.text(reasoning)
-
-                sources = stream_meta.get("sources", [])
-                if sources:
-                    with st.expander(
-                        f"📚 Sources Referenced ({len(sources)})"
-                    ):
-                        for src in sources:
-                            # Sanitize user-provided source data
-                            safe_file = sanitize_for_markdown(
-                                src.get("file", "")
-                            )
-                            safe_topic = sanitize_for_markdown(
-                                src.get("topic", "")
-                            )
-                            safe_preview = sanitize_for_markdown(
-                                src.get("preview", "")
-                            )
-                            st.markdown(
-                                f"""
-                            <div class="source-card">
-                                <div class="source-header">
-                                    <span class="source-file">{safe_file}</span>
-                                    <span class="source-score">{src['score']}</span>
-                                </div>
-                                <div class="source-topic">{safe_topic}</div>
-                                <div class="source-preview">{safe_preview}</div>
-                            </div>
-                            """,
-                                unsafe_allow_html=True,
-                            )
-
-                # IEEE Download Button (Current)
-                if (
-                    stream_meta.get("intent", {}).get("intent")
-                    == "ieee_paper_gen"
-                ):
-                    ieee_docx = generate_ieee_docx(
-                        final_content, st.session_state.ieee_metadata
-                    )
-                    st.download_button(
-                        label="📄 Download IEEE Official Paper (.docx)",
-                        data=ieee_docx,
-                        file_name=f"IEEE_Paper_{st.session_state.ieee_metadata.get('title', 'Generated').replace(' ', '_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key="dl_ieee_latest",
-                        use_container_width=True,
-                    )
-
-            st.session_state.chat_history.append(
-                {
-                    "role": "assistant",
-                    "content": final_content,
-                    "reasoning_details": final_data.get("reasoning"),
-                    "intent": stream_meta.get("intent"),
-                    "sources": stream_meta.get("sources", []),
-                    "confidence": confidence_result,
-                }
-            )
-            
-            # Update the last user message with confidence
-            if confidence_result and len(st.session_state.chat_history) > 1:
-                st.session_state.chat_history[-2]["confidence"] = confidence_result
-            
-            # Render confidence badge below user question
-            if confidence_result:
-                render_confidence_badge(confidence_result)
+        st.session_state.chat_history.append(
+            {
+                "role": "assistant",
+                "content": final_content,
+                "reasoning_details": final_data.get("reasoning"),
+                "intent": stream_meta.get("intent"),
+                "sources": stream_meta.get("sources", []),
+                "confidence": confidence_result,
+            }
+        )

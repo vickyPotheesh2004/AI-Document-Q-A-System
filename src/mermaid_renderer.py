@@ -551,17 +551,16 @@ def extract_mermaid_blocks(text: str) -> list[str]:
 
 
 MERMAID_HTML_TEMPLATE = """
-<div id="{div_id}-wrapper" class="mermaid-container-wrapper" style="width:100%; height:600px; position:relative; background:#ffffff; border-radius:12px; border:1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); margin: 20px 0; overflow: hidden; display: flex; flex-direction: column;">
-    
+<div id="{div_id}-wrapper" class="mermaid-container-wrapper" style="width:100%; min-height:120px; height:auto; position:relative; background:#ffffff; border-radius:12px; border:1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); margin: 20px 0; overflow: hidden; display: inline-block;">
+
     <!-- Header/Toolbar -->
-    <div style="padding: 10px 15px; border-bottom: 1px solid #f1f5f9; background: #fff; display: flex; justify-content: space-between; align-items: center; min-height: 50px;">
+    <div style="padding: 10px 15px; border-bottom: 1px solid #f1f5f9; background: #fff; display: flex; justify-content: space-between; align-items: center; min-height: 44px;">
         <div style="color: #64748b; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
             Research Tree View (Scroll to explore)
         </div>
         <div style="display: flex; gap: 8px;">
-             <!-- Download Button -->
-            <button onclick="downloadSvg('{div_id}')" 
+            <button onclick="downloadSvg('{div_id}')"
                     class="mermaid-download-btn"
                     style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding: 6px 12px; font-size: 12px; display:flex; align-items:center; gap: 6px; cursor:pointer; color: #475569; transition: all 0.2s ease;"
                     title="Download SVG">
@@ -575,144 +574,164 @@ MERMAID_HTML_TEMPLATE = """
         </div>
     </div>
 
-    <!-- Canvas -->
-    <div id="{div_id}" class="mermaid-canvas" style="flex: 1; width:100%; overflow:auto; background: #ffffff; padding: 20px;">
-        <div id="{div_id}-loading" style="color:#64748b; font-family: Inter, sans-serif; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; height: 100%;">
+    <!-- Canvas — dynamic height, no fixed constraint -->
+    <div id="{div_id}" class="mermaid-canvas" style="width:100%; overflow:auto; background:#ffffff; padding:20px; max-height:700px;">
+        <div id="{div_id}-loading" style="color:#64748b; font-family: Inter, sans-serif; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 80px;">
             <div style="width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
             <span>Building Tree Structure...</span>
         </div>
     </div>
-    
+
     <style>
         @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
-        /* Custom Scrollbars */
-        .mermaid-canvas::-webkit-scrollbar {{ width: 12px; height: 12px; }}
+        .mermaid-canvas::-webkit-scrollbar {{ width: 10px; height: 10px; }}
         .mermaid-canvas::-webkit-scrollbar-track {{ background: #f8fafc; }}
         .mermaid-canvas::-webkit-scrollbar-thumb {{ background: #cbd5e1; border-radius: 10px; border: 3px solid #f8fafc; }}
         .mermaid-canvas::-webkit-scrollbar-thumb:hover {{ background: #94a3b8; }}
-        
-        /* The Secret Sauce: No constraints on SVG */
         .mermaid-canvas svg {{
             display: block;
             max-width: none !important;
             height: auto !important;
-            /* Allow individual nodes to be clickable/hoverable */
             pointer-events: auto;
         }}
-        
         .mermaid-download-btn:hover {{
-            background: #f1f5f9;
-            border-color: #cbd5e1;
-            color: #1e293b;
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #1e293b !important;
         }}
     </style>
 </div>
 
 <script>
 window.downloadSvg = function(divId) {{
-    const container = document.getElementById(divId);
+    var container = document.getElementById(divId);
     if (!container) return;
-    
-    const svg = container.querySelector('svg');
-    if (!svg) {{
-        console.error("MermaidHelp: SVG not found for download");
-        return;
-    }}
-    
+    var svg = container.querySelector('svg');
+    if (!svg) {{ alert("Diagram not available for download."); return; }}
     try {{
-        // Create a copy to avoid modifying the UI version
-        const svgClone = svg.cloneNode(true);
+        var svgClone = svg.cloneNode(true);
         svgClone.setAttribute('style', 'background-color: white; padding: 20px;');
-        
-        // Ensure XMLNS is present for standalone files
-        if (!svgClone.getAttribute('xmlns')) {{
-            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        }}
-        
-        const svgData = new XMLSerializer().serializeToString(svgClone);
-        const svgBlob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
-        const url = URL.createObjectURL(svgBlob);
-        
-        const link = document.createElement('a');
+        if (!svgClone.getAttribute('xmlns')) svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        var svgData = new XMLSerializer().serializeToString(svgClone);
+        var svgBlob = new Blob([svgData], {{type: 'image/svg+xml;charset=utf-8'}});
+        var url = URL.createObjectURL(svgBlob);
+        var link = document.createElement('a');
         link.href = url;
-        link.download = 'DocMind-Analysis-Tree-' + new Date().getTime() + '.svg';
+        link.download = 'Diagram-' + new Date().getTime() + '.svg';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-    }} catch (e) {{
-        console.error("MermaidHelp: Download failed", e);
-    }}
+    }} catch (e) {{ console.error("Download failed", e); }}
 }};
 
 (function() {{
     var code = {escaped_code};
     var divId = "{div_id}";
+    var rendered = false;
+
+    // Timeout fallback — if diagram doesn't render in 8s, show error
+    var fallbackTimer = setTimeout(function() {{
+        if (!rendered) {{
+            var container = document.getElementById(divId);
+            if (container && !container.querySelector('svg')) {{
+                container.innerHTML =
+                    '<div style="color:#92400e;background:#fffbeb;padding:15px;border-radius:8px;font-size:14px;border:1px solid #fbbf24;">'
+                    + '<strong>⚠️ Diagram Render Timeout</strong><br>'
+                    + 'The diagram could not be rendered within the time limit. '
+                    + 'This may be due to complex or invalid syntax.'
+                    + '<br><br><strong>Diagram code:</strong>'
+                    + '<pre style="background:#fef3c7;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;">'
+                    + code.replace(/</g,"&lt;")
+                    + '</pre></div>';
+            }}
+        }}
+    }}, 8000);
 
     async function renderMermaid() {{
         try {{
-            // Check if mermaid is loaded, if not load it
             if (typeof mermaid === "undefined") {{
                 var script = document.createElement('script');
                 script.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
                 document.head.appendChild(script);
                 await new Promise(function(resolve) {{
                     script.onload = resolve;
-                    script.onerror = resolve;
+                    script.onerror = function() {{ resolve(); }};
                 }});
             }}
-            
-            // Initialize mermaid
+
             mermaid.initialize({{
-                startOnLoad: false,
-                theme: "neutral",
+                startOnLoad: true,
+                theme: "dark",
                 themeVariables: {{
                     fontSize: "14px",
                     fontFamily: "Inter, sans-serif",
-                    primaryColor: "#ffffff",
-                    edgeColor: "#585858",
-                    lineColor: "#585858",
-                    textColor: "#333333",
-                    mainBkg: "#ffffff",
-                    nodeBorder: "#302b63",
-                    clusterBkg: "#f8f9fa",
+                    darkMode: true,
+                    primaryColor: "#302b63",
+                    primaryTextColor: "#e0e0f0",
+                    primaryBorderColor: "#4a45a0",
+                    lineColor: "#8b85c8",
+                    secondaryColor: "#24243e",
+                    tertiaryColor: "#1e1e2e",
+                    edgeLabelBackground: "#24243e",
+                    textColor: "#e0e0f0",
+                    mainBkg: "#1e1e2e",
+                    nodeBorder: "#4a45a0",
+                    clusterBkg: "#24243e",
+                    clusterBorder: "#4a45a0",
+                    titleColor: "#a8edea",
                 }},
                 flowchart: {{ useMaxWidth: false, htmlLabels: true, curve: "basis" }},
                 mindmap: {{ useMaxWidth: false, htmlLabels: true }},
-                sequence:  {{ useMaxWidth: false }},
-                gantt:     {{ useMaxWidth: false }},
+                sequence: {{ useMaxWidth: false }},
+                gantt: {{ useMaxWidth: false }},
                 securityLevel: "loose",
             }});
-            
-            // Generate unique ID for this diagram
+
             var id = "mermaid-svg-" + Math.random().toString(36).substr(2,9);
-            
-            // Use async render for Mermaid v10+
             var result = await mermaid.render(id, code);
-            
-            // Insert the SVG into the container
+
             var container = document.getElementById(divId);
             container.innerHTML = result.svg;
-            
-            // CRITICAL: Remove the inline max-width that Mermaid injects
+            rendered = true;
+            clearTimeout(fallbackTimer);
+
+            // Auto-resize: fit wrapper to actual SVG dimensions
             var svg = container.querySelector('svg');
             if (svg) {{
                 svg.removeAttribute('style');
                 svg.style.maxWidth = 'none';
                 svg.style.height = 'auto';
-                
-                // If it's a wide tree, ensure it takes up its needed space
-                var box = svg.viewBox.baseVal;
+                svg.style.display = 'block';
+
+                var box = svg.viewBox && svg.viewBox.baseVal;
                 if (box && box.width > 0) {{
-                     svg.style.width = box.width + 'px';
+                    svg.style.width = Math.max(box.width, 300) + 'px';
+                    svg.style.height = (box.height + 40) + 'px';
                 }}
+
+                // Auto-resize the iframe to fit content (notify Streamlit)
+                var wrapper = document.getElementById(divId + '-wrapper');
+                if (wrapper) {{
+                    var actualH = container.scrollHeight + 64;
+                    wrapper.style.height = Math.min(actualH, 750) + 'px';
+                }}
+
+                // Send height to Streamlit iframe
+                try {{
+                    var totalH = document.body.scrollHeight;
+                    window.parent.postMessage({{ type: 'streamlit:setFrameHeight', height: totalH }}, '*');
+                }} catch(ignore) {{}}
             }}
         }} catch(e) {{
+            rendered = true;
+            clearTimeout(fallbackTimer);
             document.getElementById(divId).innerHTML =
-                '<div style="color:#b91c1c;background:#fef2f2;padding:15px;border-radius:8px;font-size:14px;">'
-                + '<strong>Mermaid Render Error:</strong><br>'
-                + e.message
-                + '<br><br><strong>Diagram code:</strong><pre style="background:#f5f5f5;padding:10px;overflow-x:auto;">'
+                '<div style="color:#f87171;background:#1e1e2e;padding:15px;border-radius:8px;font-size:14px;border:1px solid #4a45a0;">'
+                + '<strong>⚠️ Mermaid Render Error:</strong><br>'
+                + '<span style="color:#fca5a5;">' + e.message + '</span>'
+                + '<br><br><strong>Diagram code:</strong>'
+                + '<pre style="background:#0f0c29;color:#a8edea;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;border-radius:6px;">'
                 + code.replace(/</g,"&lt;")
                 + '</pre></div>';
         }}
@@ -777,21 +796,19 @@ def render_content_with_mermaid(content: str) -> None:
             is_valid, error_msg = MermaidValidator.validate(cleaned)
 
             if not is_valid:
-                # Show clean error with the fixed code so the user can see what went wrong
+                logger.warning(f"[MermaidRenderer] Validation failed: {error_msg}")
                 st.warning(f"⚠️ Diagram syntax issue: {error_msg}")
                 with st.expander("Show diagram code"):
                     st.code(cleaned, language="text")
             else:
-                # Render the diagram
                 div_id = f"mermaid-div-{uuid.uuid4().hex[:8]}"
-                escaped = json.dumps(cleaned)   # safe JS string escaping
+                escaped = json.dumps(cleaned)
 
                 html = MERMAID_HTML_TEMPLATE.format(
                     div_id=div_id,
                     escaped_code=escaped,
                 )
-                # height auto-sizes; 1200 is better for very large wide diagrams
-                components.html(html, height=1200, scrolling=True)
+                components.html(html, height=450, scrolling=True)
 
                 # Also show code in expander for copy/debug
                 with st.expander("View diagram code", expanded=False):

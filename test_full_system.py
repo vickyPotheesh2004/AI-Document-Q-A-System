@@ -116,10 +116,10 @@ def run_az_test():
     chunks, _ = qa_engine.get_all_chunks()
     if len(chunks) > 0:
         # Check if titles look conceptual rather than generic
-        unique_titles = set(qa_engine.collection.get(include=["metadatas"])["metadatas"])
-        logging.info(f"✅ Document ingested and dynamic segmentation discovered {len(chunks)} logical segments.")
-        # We can't easily peek into the DB 'title' here without some more code, 
-        # but the fact that ingest_and_segment finished with high-dim embedding is the key.
+        metas = qa_engine.collection.get(include=["metadatas"])["metadatas"]
+        unique_titles = {m.get("topic") for m in metas if m}
+        logging.info(f"✅ Document ingested: {len(chunks)} logical segments across {len(unique_titles)} topics detected.")
+        # Verification: Ingesting and segmentation finished successfully.
     else:
         logging.error("❌ Segmentation failed - no chunks were stored.")
         failed += 1

@@ -1,35 +1,62 @@
+# =========================
 # Core AI/ML Dependencies
-chromadb==1.5.2
-numpy==2.4.2
-openai==2.24.0
-pandas==2.3.3
-scikit-learn==1.8.0
-sentence-transformers==5.2.3
-torch==2.10.0
-transformers==5.2.0
+# =========================
+chromadb>=1.5.2,<2.0
+numpy>=2.4.0,<3.0
+google-genai>=0.2.0
+pandas>=2.3.0,<3.0
+scikit-learn>=1.8.0,<2.0
+sentence-transformers>=5.2.0,<6.0
+torch>=2.2.0,<3.0
+transformers>=4.45.0,<6.0
 
+# =========================
 # Text Processing
-nltk==3.9.3
-pytesseract==0.3.13
-PyMuPDF==1.27.1
-python-docx==1.2.0
-rank-bm25==0.2.2
+# =========================
+nltk>=3.9.4,<4.0
+pytesseract>=0.3.13,<1.0
+PyMuPDF>=1.27.0,<2.0
+python-docx>=1.2.0,<2.0
+rank-bm25>=0.2.2,<1.0
 
+# =========================
 # Web & API
-python-dotenv==1.2.2
-requests==2.32.5
+# =========================
+python-dotenv>=1.0.0,<2.0
+requests>=2.33.0,<3.0
 
+# =========================
 # App Framework
-streamlit==1.55.0
+# =========================
+streamlit>=1.55.0,<2.0
 
+# =========================
 # Image Processing
-pillow==12.1.1
+# =========================
+pillow>=12.0.0,<13.0
+torchvision>=0.17.0,<1.0
 
+# =========================
 # Utilities
-pydantic==2.12.5
-PyYAML==6.0.3
-tenacity==9.1.4
-tqdm==4.67.3
+# =========================
+pydantic>=2.12.0,<3.0
+PyYAML>=6.0.0,<7.0
+tenacity>=9.0.0,<10.0
+tqdm>=4.65.0,<5.0
 
+# =========================
 # Testing
-pytest==8.4.0
+# =========================
+pytest>=8.0.0,<9.0
+
+# =========================
+# Voice Input
+# =========================
+SpeechRecognition>=3.15.0,<4.0
+PyAudio>=0.2.14,<1.0
+
+# =========================
+# Security / Infra
+# =========================
+tornado>=6.5.5,<7.0
+setuptools>=78.1.1,<80.0

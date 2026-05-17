@@ -16,8 +16,8 @@ logger = get_logger(__name__)
 
 class TopicGenerator:
     def __init__(self):
-        llm_client = get_llm_client()
-        self.client = llm_client.client
+        self.llm_client = get_llm_client()
+        self.client = self.llm_client.client
         # Use configurable model for simple labeling
         self.model = DEFAULT_LLM_MODEL
 
@@ -27,7 +27,7 @@ class TopicGenerator:
             return "General Snippet"
 
         try:
-            response = self.client.chat.completions.create(
+            response = self.llm_client.create_chat_completion(
                 model=self.model,
                 messages=[
                     {
@@ -37,7 +37,6 @@ class TopicGenerator:
                 ],
                 max_tokens=TOPIC_MAX_TOKENS,  # Strict token limit for speed
                 temperature=TOPIC_TEMPERATURE,  # Low randomness for consistent labels
-                extra_body={"reasoning": {"enabled": True}},
             )
             return response.choices[0].message.content.strip().replace('"', "")
         except Exception as e:

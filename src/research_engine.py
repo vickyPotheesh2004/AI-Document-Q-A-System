@@ -63,11 +63,7 @@ class ResearchEngine:
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Failed to generate document overview: {error_msg}")
-            if "429" in error_msg:
-                return "ERROR: API_RATE_LIMIT_EXCEEDED"
-            if "404" in error_msg:
-                return f"🚫 **OpenRouter Privacy Error**: {error_msg}\n\n**FIX**: Go to [OpenRouter Privacy Settings](https://openrouter.ai/settings/privacy) and enable **'Allow Data Retention'** for free models."
-            return f"Could not generate overview: {error_msg}"
+            return f"Could not generate overview due to an unexpected error: {error_msg}"
 
     def generate_auto_suggestions(
         self, all_chunks: list, all_metadata: list
@@ -94,10 +90,12 @@ class ResearchEngine:
                 max_tokens=RESEARCH_SUGGESTIONS_MAX_TOKENS,
                 temperature=RESEARCH_SUGGESTIONS_TEMPERATURE
             )
-            raw = response.choices[0].message.content.strip()
+            message = response.choices[0].message
+            raw = message.content.strip()
 
             # Step 1: Remove reasoning tags or common markdown code block markers
-            # More aggressive cleaning for Nemotron/Trinity reasoning blocks
+            # More aggressive cleaning for Nemotron reasoning blocks
+            reasoning = getattr(message, "reasoning", None)
             clean_raw = re.sub(r"^>(.*?)\n\n", "", raw, flags=re.DOTALL | re.MULTILINE)
             # Remove any thinking blocks if they leaked
             clean_raw = re.sub(r"<think>.*?</think>", "", clean_raw, flags=re.DOTALL | re.IGNORECASE)
@@ -188,12 +186,12 @@ class ResearchEngine:
             logger.warning("No valid suggestions found after normalization")
             return []
         except Exception as e:
-            logger.error(f"Critical error in suggestion parsing: {str(e)}", exc_info=True)
-            return []
             error_msg = str(e)
-            logger.error(f"Failed to generate auto suggestions: {error_msg}")
+            # Only log full traceback for unexpected errors, not simple rate limits
             if "429" in error_msg:
-                return ["ERROR: API_RATE_LIMIT_EXCEEDED"]
+                logger.warning(f"Auto-suggestions skipped: Rate limit exceeded (429).")
+            else:
+                logger.error(f"Critical error in suggestion generation: {error_msg}", exc_info=True)
             return []
 
     def evaluate_addon_feasibility(self, proposal: str, context: str) -> str:

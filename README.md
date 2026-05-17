@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 # 🔬 ResearchHelp-AI Analysis System: Advanced AI Document Research & Publishing System
-=======
-# 🔬 AI ResearchHelp-AI-anaylsis-system: Advanced AI Document Research & Publishing System
->>>>>>> 8daad3ac9091e08ebcb8985f2d093219dc2765be
 
 ResearchHelp-AI Analysis System is a next-generation, multi-modal document analysis platform that transforms raw files into structured, queryable knowledge bases. By leveraging **semantic embeddings**, **hybrid retrieval (Vector + BM25)**, **LLM streaming**, and **rich multimedia integrations**, it enables deep research Q&A, auto-generated suggestions, and professional academic publishing — all directly from your uploaded files.
 
@@ -14,9 +10,10 @@ ResearchHelp-AI Analysis System is a next-generation, multi-modal document analy
 - **🎓 IEEE Official Paper Generator**: Synthesize academic manuscripts complete with Abstracts, Literature Reviews, and Methodologies, auto-formatted into professional Times New Roman, two-column style `.docx` files.
 - **🧪 Simple English Deep Analysis**: Specialized research mode that breaks down complex domains into simple, jargon-free English using real-world analogies.
 - **⚡ Token-by-Token Streaming**: Answers stream in real-time. No more waiting for a full response.
-- **🔊 Voice Narration (Web Speech API)**: Listen to document overviews, AI suggestions, and chat responses via embedded TTS buttons.
+- **🔊 Voice Interface (STT & TTS)**: Ask queries seamlessly using your microphone, and listen to document overviews, AI suggestions, and chat responses via embedded TTS buttons.
 - **🖼️ AI Image Generation**: Ask for a "visual understanding" and the system will dynamically paint an AI-generated image (via Pollinations.ai) to explain the concept.
 - **📊 Interactive Flowcharts**: Diagrams are rendered live as colored, interactive Mermaid flowcharts matching the app's theme.
+- **🧠 Deterministic Confidence Scoring**: Evaluates the retrieved context vs response accuracy deterministically, saving LLM tokens.
 - **📄 Comprehensive Export**: Download your entire session in **Markdown**, **HTML**, or fully-styled **Word (.docx)**.
 
 ---
@@ -30,7 +27,7 @@ ResearchHelp-AI Analysis System is a next-generation, multi-modal document analy
 - Intelligent chunking mechanism to handle massive documents seamlessly.
 
 ### 2. Advanced Intent Classification System
-At the heart of ResearchHelp-AI-anaylsis-system is a 6-category smart routing engine that categorizes every query before processing. This ensures the correct prompt template and analysis logic is applied.
+At the heart of ResearchHelp-AI-anaylsis-system is a smart routing engine that categorizes every query before processing. This ensures the correct prompt template and analysis logic is applied.
 
 | Intent Category | Trigger Example | Functionality |
 |-----------------|-----------------|---------------|
@@ -50,7 +47,7 @@ When a domain is detected, ResearchHelp-AI-anaylsis-system dynamically injects a
 
 ### 4. The IEEE Official Paper Generator
 ResearchHelp-AI Analysis System acts as an automated collaborative researcher:
-1. **Metadata Collection**: Enter your team names, official emails, college affiliations, and paper title in the **📝 IEEE Metadata** tab.
+1. **Metadata Collection**: Enter your team names, official emails, college affiliations, and paper title in the **📝 IEEE Paper Metadata** expander within the **💬 Document Chat** tab.
 2. **Context Synthesis**: The AI reviews your uploaded documents and your entire chat history.
 3. **Scholarly Prompting**: The `IEEE_PAPER_PROMPT` enforces a strict academic structure (Abstract, Keywords, Introduction, Literature Review, Methodology, Results, Conclusion, References).
 4. **Professional Output**: Generates an instantly downloadable `IEEE_Paper.docx` formatted to simulate professional publication standards.
@@ -169,7 +166,7 @@ The system relies on the following core libraries defined in `requirements.txt`:
    - Example: *Ask "Explain the core networking architecture simply"* to trigger the Simple English Deep Analysis Mode.
 
 5. **Generate an Official Publication**
-   - Navigate to the **📝 IEEE Metadata** tab.
+   - Navigate to the **💬 Document Chat** tab and open the **📝 IEEE Paper Metadata** expander.
    - Fill in your team's details.
    - Type in the chat: *"Generate an IEEE research paper based on our analysis."*
    - Click the **Download IEEE Official Paper (.docx)** button attached to the response.

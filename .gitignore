@@ -21,3 +21,5 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+#API Keys and Secrets
+.env

@@ -1,8 +1,10 @@
+import os
 import json
 import atexit
 import chromadb
 import re
 from dotenv import load_dotenv
+from tenacity import retry, retry_if_exception_type, wait_exponential, stop_after_attempt
 from concurrent.futures import ThreadPoolExecutor
 from rank_bm25 import BM25Okapi
 from src.topic_segmenter import TopicSegmenter
@@ -15,7 +17,7 @@ from src.llm_client import get_llm_client
 from src.confidence_scorer import ConfidenceScorer
 from src.logging_utils import get_logger
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Get logger - this ensures logging is configured
 logger = get_logger(__name__)
@@ -67,7 +69,7 @@ class QAEngine:
         
         self.client = llm_client.client
         self.llm_client = llm_client  # Use the full client for helper methods
-        self.model = llm_client.trinity_model  # Use Trinity Large - reasoning for Q&A
+        self.model = llm_client.trinity_model  # Use Nemotron 3 - reasoning for Q&A
 
         self.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
         self.collection = self.chroma_client.get_or_create_collection(name="active_session")
@@ -215,7 +217,8 @@ class QAEngine:
 
     def _retrieve_context(self, question):
         # Use hybrid retrieval to find the most relevant chunks instead of returning everything
-        return self._hybrid_retrieve(question, n_results=10)
+        # Increased n_results from 10 to 20 for broader document coverage
+        return self._hybrid_retrieve(question, n_results=20)
 
     def get_answer_stream(self, question, chat_history, metadata=None):
         # Sanitize user input to prevent prompt injection
@@ -270,24 +273,15 @@ class QAEngine:
             if domain.lower() in combined_text:
                 detected_domains.append(domain)
 
-        # Score confidence AFTER domain detection
-        try:
-            confidence_result = self.confidence_scorer.score_confidence(
-                user_question=question,
-                intent=intent,
-                domain=detected_domains[0] if detected_domains else "General",
-                context_chunks=[item['doc'] for item in retrieved],
-                has_sources=len(retrieved) > 0,
-            )
-        except Exception as e:
-            logger.warning(f"Confidence scoring failed: {e}. Using criteria-based scoring.")
-            confidence_result = self.confidence_scorer._criteria_based_scoring(
-                user_question=question,
-                intent=intent,
-                domain=detected_domains[0] if detected_domains else "General",
-                context_chunks=[item['doc'] for item in retrieved],
-                has_sources=len(retrieved) > 0,
-            )
+        # Score confidence (deterministic — no API call needed)
+        confidence_result = self.confidence_scorer.score_confidence(
+            user_question=question,
+            intent=intent,
+            domain=detected_domains[0] if detected_domains else "General",
+            context_chunks=[item['doc'] for item in retrieved],
+            retrieval_scores=[item['score'] for item in retrieved],
+            has_sources=len(retrieved) > 0,
+        )
 
         system_prompt = get_prompt_for_intent(intent, detected_domains=detected_domains)
         
@@ -301,40 +295,84 @@ class QAEngine:
         messages = [{"role": "system", "content": f"{system_prompt}\n\nDOCUMENT CONTEXT:\n{context}"}]
 
         for msg in chat_history[-CHAT_HISTORY_CONTEXT_SIZE:]:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+            m = {"role": msg["role"], "content": msg["content"]}
+            if "reasoning_details" in msg and msg["reasoning_details"]:
+                m["reasoning_details"] = msg["reasoning_details"]
+            messages.append(m)
 
         messages.append({"role": "user", "content": question})
 
         try:
-            stream = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=QA_MAX_TOKENS,
-                temperature=QA_TEMPERATURE,
-                stream=True
+            @retry(
+                retry=retry_if_exception_type(Exception),
+                wait=wait_exponential(multiplier=2, min=2, max=10),
+                stop=stop_after_attempt(3),
+                reraise=True
             )
+            def _create_stream():
+                sys_inst, contents = self.llm_client._convert_messages(messages)
+                from google.genai import types
+                config = types.GenerateContentConfig(
+                    system_instruction=sys_inst,
+                    max_output_tokens=QA_MAX_TOKENS,
+                    temperature=QA_TEMPERATURE
+                )
+                return self.client.models.generate_content_stream(
+                    model=self.model,
+                    contents=contents,
+                    config=config
+                )
+            
+            stream = _create_stream()
 
             yield {"type": "meta", "intent": intent_result, "sources": source_citations[:5], "confidence": confidence_result}
 
             full_content = ""
+            full_reasoning = ""
             for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    token = chunk.choices[0].delta.content
-                    full_content += token
-                    yield {"type": "token", "token": token}
+                try:
+                    if chunk.text:
+                        token = chunk.text
+                        full_content += token
+                        yield {"type": "token", "token": token}
+                except Exception:
+                    pass
 
-            if "<think>" in full_content and "</think>" in full_content:
+            # Finalize reasoning and content
+            if full_reasoning:
+                reasoning = full_reasoning
+                content = full_content
+            elif "<think>" in full_content and "</think>" in full_content:
                 start = full_content.find("<think>") + 7
                 end = full_content.find("</think>")
                 reasoning = full_content[start:end].strip()
                 content = full_content[end + 8:].strip()
-                yield {"type": "done", "content": content, "reasoning": reasoning}
             else:
-                yield {"type": "done", "content": full_content, "reasoning": None}
+                content = full_content
+                reasoning = None
+
+            # Re-score confidence with the actual answer text (grounding + certainty)
+            confidence_result = self.confidence_scorer.update_with_answer(
+                confidence_result, content, [item['doc'] for item in retrieved]
+            )
+
+            yield {"type": "confidence_update", "confidence": confidence_result}
+            yield {"type": "done", "content": content, "reasoning": reasoning}
 
         except Exception as e:
-            yield {"type": "meta", "intent": intent_result, "sources": []}
-            yield {"type": "done", "content": f"API Error: {str(e)}", "reasoning": None}
+            error_msg = str(e)
+            if "429" in error_msg:
+                if "daily" in error_msg.lower() or "quota" in error_msg.lower():
+                    user_msg = "🛑 **Daily Free Quota Exhausted**\n\nYou've reached the OpenRouter daily limit for free models (50 requests). \n\n**Solutions**:\n1. Wait 24 hours for reset.\n2. [Add credits ($5)](https://openrouter.ai/settings/credits) to increase limit to 1,000+ requests/day.\n3. Try a different free model in `.env`."
+                else:
+                    user_msg = "⏳ **Model is Busy (Rate Limit)**\n\nThe free model is currently receiving too many requests. \n\n**To Fix**: Wait 10-20 seconds and try again, or [add credits](https://openrouter.ai/settings/credits) for priority access."
+            elif "500" in error_msg:
+                user_msg = "🛠️ **Model Provider Error (500)**\n\nThe model provider is experiencing temporary issues. \n\n**To Fix**: Please try again in 30-60 seconds. If it persists, the model may be undergoing maintenance."
+            else:
+                user_msg = f"An error occurred while generating the response. Please try again.\n\n*Details: {error_msg[:200]}*"
+            
+            yield {"type": "meta", "intent": intent_result, "sources": [], "confidence": confidence_result}
+            yield {"type": "done", "content": user_msg, "reasoning": None}
 
     def get_answer(self, question, chat_history, metadata=None):
         """
@@ -405,24 +443,15 @@ class QAEngine:
             if domain.lower() in combined_text:
                 detected_domains.append(domain)
         
-        # Score confidence BEFORE generating the answer
-        try:
-            confidence_result = self.confidence_scorer.score_confidence(
-                user_question=question,
-                intent=intent,
-                domain=detected_domains[0] if detected_domains else "General",
-                context_chunks=[item['doc'] for item in retrieved],
-                has_sources=len(retrieved) > 0,
-            )
-        except Exception as e:
-            logger.warning(f"Confidence scoring failed: {e}. Using criteria-based scoring.")
-            confidence_result = self.confidence_scorer._criteria_based_scoring(
-                user_question=question,
-                intent=intent,
-                domain=detected_domains[0] if detected_domains else "General",
-                context_chunks=[item['doc'] for item in retrieved],
-                has_sources=len(retrieved) > 0,
-            )
+        # Score confidence (deterministic — no API call needed)
+        confidence_result = self.confidence_scorer.score_confidence(
+            user_question=question,
+            intent=intent,
+            domain=detected_domains[0] if detected_domains else "General",
+            context_chunks=[item['doc'] for item in retrieved],
+            retrieval_scores=[item['score'] for item in retrieved],
+            has_sources=len(retrieved) > 0,
+        )
 
         system_prompt = get_prompt_for_intent(intent, detected_domains=detected_domains)
         
@@ -436,12 +465,15 @@ class QAEngine:
         messages = [{"role": "system", "content": f"{system_prompt}\n\nDOCUMENT CONTEXT:\n{context}"}]
 
         for msg in chat_history[-CHAT_HISTORY_CONTEXT_SIZE:]:
-            messages.append({"role": msg["role"], "content": msg["content"]})
+            m = {"role": msg["role"], "content": msg["content"]}
+            if "reasoning_details" in msg and msg["reasoning_details"]:
+                m["reasoning_details"] = msg["reasoning_details"]
+            messages.append(m)
 
         messages.append({"role": "user", "content": question})
 
         try:
-            # Use create_qa_completion which enables reasoning for Trinity model
+            # Use create_qa_completion which enables reasoning for Nemotron 3 model
             response = self.llm_client.create_qa_completion(
                 messages=messages,
                 max_tokens=QA_MAX_TOKENS,
@@ -461,6 +493,11 @@ class QAEngine:
             if not reasoning_data:
                 reasoning_data = "Model processed logic internally (Invisible Reasoning Pipeline)."
 
+            # Re-score confidence with the actual answer text
+            confidence_result = self.confidence_scorer.update_with_answer(
+                confidence_result, content, [item['doc'] for item in retrieved]
+            )
+
             return {
                 "content": content,
                 "reasoning_details": reasoning_data,
@@ -469,12 +506,20 @@ class QAEngine:
                 "confidence": confidence_result,
             }
         except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg:
+                if "daily" in error_msg.lower() or "quota" in error_msg.lower():
+                    user_msg = "🛑 **Daily Free Quota Exhausted** — You've reached the OpenRouter daily limit. Please wait 24h or [add credits](https://openrouter.ai/settings/credits) for higher limits."
+                else:
+                    user_msg = "⏳ **Model is Busy** — Rate limit reached for this free model. Please wait a few seconds and try again."
+            else:
+                user_msg = f"An error occurred while generating the response. Please try again.\n\n*Details: {error_msg[:200]}*"
             return {
-                "content": f"API Error: {str(e)}",
+                "content": user_msg,
                 "reasoning_details": None,
                 "intent": intent_result,
                 "sources": [],
-                "confidence": self.confidence_scorer._criteria_based_scoring(
+                "confidence": self.confidence_scorer.score_confidence(
                     user_question=question,
                     intent=intent_result.get("intent", "general") if isinstance(intent_result, dict) else "general",
                     domain="",

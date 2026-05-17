@@ -198,7 +198,12 @@ class IntentClassifier:
             return result
 
         except Exception as e:
-            logger.error(f"Intent classification LLM call failed: {e}")
+            error_msg = str(e)
+            if "429" in error_msg:
+                logger.warning(f"Intent classification rate limited (429). Falling back to basic document QA.")
+            else:
+                logger.error(f"Intent classification LLM call failed: {error_msg}")
+            
             result = {"intent": "document_qa", **INTENT_LABELS["document_qa"]} # Default to document_qa on failure
             with _cache_lock:
                 self._cache[cache_key] = result

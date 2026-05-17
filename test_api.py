@@ -1,149 +1,76 @@
 """
 API Connection Test
 ===================
-This test verifies the OpenRouter API connection:
+This test verifies the Gemini API connection:
 - API key validation
-- Model configuration
 - Basic completion request
-- Reasoning capability (if supported by model)
-- Vision/image understanding (Gemma 3 12B)
 
 Usage:
     python test_api.py
 """
 import os
 import logging
-from openai import OpenAI
+from google import genai
 from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-load_dotenv()
+load_dotenv(override=True)
 
-api_key = os.getenv("OPENROUTER_API_KEY")
-site_url = os.getenv("OPENROUTER_SITE_URL", "https://github.com")
-site_title = os.getenv("OPENROUTER_SITE_TITLE", "ResearchHelp AI Analysis System")
+api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
     raise ValueError(
-        "CRITICAL ERROR: OPENROUTER_API_KEY not found. Check your .env file."
+        "CRITICAL ERROR: GEMINI_API_KEY not found. Check your .env file."
     )
 
 logging.info("API Key loaded securely. Initializing client...")
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=api_key,
-)
+client = genai.Client(api_key=api_key)
 
-logging.info("Making test API call to OpenRouter...")
-
-# Define models with their configuration
-# GLM 4.5 Air - Fast, good for mermaid code generation
-# Gemma 3 12B - Multimodal, good for image understanding
-# Trinity Large - Reasoning capable
-# Nemotron 3 Super - Best reasoning for complex tasks
+logging.info("Making test API call to Gemini...")
 
 models_to_test = [
-    ("GLM 4.5 Air (Mermaid/Fast)", "z-ai/glm-4.5-air:free", False, None),
-    ("Gemma 3 12B (Standard)", "google/gemma-3-12b-it:free", False, None),
-    ("Trinity Large (QA Reasoning)", "arcee-ai/trinity-large-preview:free", True, None),
-    ("Nemotron 3 Super (Research Reasoning)", "nvidia/nemotron-3-super-120b-a12b:free", True, None),
+    ("Gemini Flash Preview", "gemini-3-flash-preview"),
 ]
 
-extra_headers = {
-    "HTTP-Referer": site_url,
-    "X-OpenRouter-Title": site_title,
-}
+total_models = len(models_to_test)
+passed_models = 0
 
-for name, model_id, enable_reasoning, image_url in models_to_test:
+for name, model_id in models_to_test:
     logging.info(f"Testing {name} [{model_id}]...")
     try:
-        extra_body = {"reasoning": {"enabled": True}} if enable_reasoning else {}
-        
-        # Prepare messages based on whether it's a vision test
-        if image_url:
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "What is in this image?"},
-                        {"type": "image_url", "image_url": {"url": image_url}}
-                    ]
-                }
-            ]
-        else:
-            messages = [
-                {
-                    "role": "user",
-                    "content": "Reply with exactly 'OK'",
-                }
-            ]
-        
-        response = client.chat.completions.create(
+        response = client.models.generate_content(
             model=model_id,
-            messages=messages,
-            max_tokens=20 if not image_url else 500,
-            temperature=0.3,
-            extra_headers=extra_headers,
-            extra_body=extra_body if extra_body else None,
+            contents="Reply with exactly 'OK'",
         )
 
-        message = response.choices[0].message
-        content = message.content
+        content = response.text
         
-        if content:
-            logging.info(f"✅ {name} Response Content: {content.strip()}")
+        if content and "OK" in content.upper():
+            logging.info(f"✅ {name} Status: WORKING | Score: 1/1")
+            passed_models += 1
+        elif content:
+            logging.warning(f"⚠️ {name} Status: PARTIAL (Unexpected content) | Response: {content.strip()}")
         else:
-            logging.warning(f"⚠️ {name} returned NULL content.")
-            # Check for reasoning if content is null
-            reasoning = getattr(message, "reasoning", None)
-            if not reasoning and hasattr(message, "reasoning_details"):
-                reasoning = message.reasoning_details
-            
-            if reasoning:
-                logging.info(f"💡 {name} returned REASONING only: {str(reasoning)[:100]}...")
-            else:
-                logging.error(f"❌ {name} returned NO content and NO reasoning. Full message: {message}")
-
-        if enable_reasoning and not content:
-             logging.info(f"Note: Some reasoning models may suppress 'content' for simple prompts.")
+            logging.error(f"❌ {name} Status: FAILED (No content)")
 
     except Exception as e:
-        logging.error(f"❌ {name} failed: {e}")
-        if "404" in str(e):
-            logging.error("   TIP: Check your OpenRouter Privacy Settings (Data Retention / Non-free models)")
+        logging.error(f"❌ {name} Status: ERROR | Error: {str(e)[:100]}")
 
-# Test Vision (Gemma 3 12B) with an example image
-logging.info("\n" + "="*50)
-logging.info("Testing Vision Capability with Gemma 3 12B...")
-logging.info("="*50)
 
-try:
-    # Example image from the user's spec
-    vision_model = "google/gemma-3-12b-it:free"
-    test_image_url = "https://live.staticflickr.com/3851/14825276609_098cac593d_b.jpg"
-    
-    response = client.chat.completions.create(
-        model=vision_model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "What is in this image?"},
-                    {"type": "image_url", "image_url": {"url": test_image_url}}
-                ]
-            }
-        ],
-        max_tokens=500,
-        temperature=0.3,
-        extra_headers=extra_headers,
-    )
-    
-    content = response.choices[0].message.content
-    logging.info(f"✅ Vision Response: {content[:200]}...")
-    
-except Exception as e:
-    logging.error(f"❌ Vision test failed: {e}")
+# FINAL SUMMARY
+score_percentage = (passed_models / total_models) * 100
+logging.info("\n" + "🚀" + "="*48 + "🚀")
+logging.info(f"API CONNECTIVITY & SCORING SUMMARY")
+logging.info(f"Total Models Tested: {total_models}")
+logging.info(f"Models Passed: {passed_models}")
+logging.info(f"Final System Score: {score_percentage:.1f}%")
 
-logging.info("\n✅ API CONNECTIVITY TEST COMPLETE!")
+if score_percentage == 100:
+    logging.info("ALL SYSTEMS OPERATIONAL ✅✅✅")
+elif score_percentage > 0:
+    logging.info("SYSTEM PARTIALLY OPERATIONAL ⚠️")
+else:
+    logging.error("SYSTEM DOWN ❌")
+logging.info("🚀" + "="*48 + "🚀\n")

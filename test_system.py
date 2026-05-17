@@ -164,18 +164,10 @@ except Exception as e:
 # TEST 7: Confidence Scorer
 print("\n7. Testing Confidence Scorer...")
 try:
-    from unittest.mock import Mock
     from src.confidence_scorer import ConfidenceScorer
     
-    # Create mock LLM client
-    mock_llm_client = Mock()
-    mock_response = Mock()
-    mock_response.choices = [Mock()]
-    mock_response.choices[0].message.content = '{"score": 85, "level": "Very High", "reason": "Direct answer found in multiple chunks."}'
-    mock_llm_client.create_fast_completion.return_value = mock_response
-    
     # Initialize scorer
-    scorer = ConfidenceScorer(mock_llm_client)
+    scorer = ConfidenceScorer()
     
     # Test scoring
     result = scorer.score_confidence(
@@ -189,24 +181,23 @@ try:
     )
     
     # Verify results
-    if result.get("score") == 85 and result.get("level") == "Very High":
+    if result.get("score") > 0 and result.get("level") in ["Moderate", "High", "Very High"]:
         print(f"[OK] Confidence Scorer working! Score: {result['score']}, Level: {result['level']}")
     else:
         print(f"[WARN] Unexpected result: {result}")
     
-    # Test fallback on error
-    mock_llm_client.create_fast_completion.side_effect = Exception("API Error")
+    # Test fallback / off-topic
     fallback_result = scorer.score_confidence(
         user_question="Test?",
-        intent="document_qa",
+        intent="off_topic",
         domain="Test",
         context_chunks=["test"]
     )
     
-    if fallback_result == ConfidenceScorer.FALLBACK:
-        print("[OK] Fallback mechanism working correctly.")
+    if fallback_result["score"] == 0 and fallback_result["level"] == "Very Low":
+        print("[OK] Off-topic mechanism working correctly.")
     else:
-        print(f"[WARN] Fallback not working as expected: {fallback_result}")
+        print(f"[WARN] Off-topic not working as expected: {fallback_result}")
         
 except Exception as e:
     print(f"[ERR] ERROR: Confidence Scorer test failed. Details: {e}")

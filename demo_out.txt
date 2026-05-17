@@ -1,0 +1,27 @@
+============================================================
+ [DEMO] CONFIDENCE SCORING LIVE DEMO
+============================================================
+User Query: 'What is the attention mechanism in transformers?'
+Context Provided:
+  [1] The attention mechanism allows transformers to focus on relevant parts of the input sequence.
+  [2] Self-attention computes query, key, and value vectors from the input embeddings.
+
+Generated Answer: 'The attention mechanism in transformers allows the model to weigh the importance of different input tokens by computing query, key, and value vectors.'
+------------------------------------------------------------
+Scoring Answer...
+
+ [SCORE] Final Score: 91%
+ [LEVEL] Level:       Very High
+
+ [INFO] Score Breakdown:
+  - Retrieval : 87.0
+  - Grounding : 100.0
+  - Overlap   : 71.0
+  - Certainty : 70.0
+
+ [REASON] Explanatory Reason:
+ strong retrieval match; well-grounded in sources
+============================================================
+
+
+==================================================

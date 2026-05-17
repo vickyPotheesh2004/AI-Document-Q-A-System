@@ -6,7 +6,7 @@ All configurable settings should be defined here and accessed via environment va
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # ==================== PATHS ====================
 
@@ -21,38 +21,28 @@ CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./chroma_db")
 
 # ==================== LLM MODELS ====================
 
-# Free model identifiers for OpenRouter
-# Model 1: Z.ai GLM 4.5 Air - Fast general chat (best for simple/fast tasks)
-GLM_45_AIR_MODEL = "z-ai/glm-4.5-air:free"
-
-# Model 2: google/gemma-3-12b-it:free - Balanced accuracy and speed
-GEMMA_3_12B_MODEL = "google/gemma-3-12b-it:free"
-
-# Model 3: Arcee AI Trinity Large Preview - Reasoning capable (best for Q&A)
-TRINITY_LARGE_MODEL = "arcee-ai/trinity-large-preview:free"
-
-# Model 4: NVIDIA Nemotron 3 Super - Best reasoning (best for complex research)
-NEMOTRON_3_SUPER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+# Free model identifiers for Gemini
+# Model 1: Gemini 3 Flash Preview - Fast general chat (best for simple/fast tasks)
+GEMINI_FLASH_MODEL = "gemini-3-flash-preview"
 
 # Default LLM model for general Q&A
+
 DEFAULT_LLM_MODEL = os.getenv(
-    "LLM_MODEL", TRINITY_LARGE_MODEL  # Use Trinity for Q&A - good reasoning
+    "LLM_MODEL", GEMINI_FLASH_MODEL  # Use Gemini Flash for Q&A
 )
 
-# Model for research engine (complex analysis - needs best reasoning)
+# Model for research engine
 RESEARCH_LLM_MODEL = os.getenv(
-    "RESEARCH_LLM_MODEL", NEMOTRON_3_SUPER_MODEL  # Use Nemotron - best reasoning
-)
-
-# Model for intent classification (fast, efficient model - simple task)
-INTENT_CLASSIFIER_MODEL = os.getenv(
-    "INTENT_CLASSIFIER_MODEL", GLM_45_AIR_MODEL  # Use GLM 4.5 Air - fastest for simple task
+    "RESEARCH_LLM_MODEL", GEMINI_FLASH_MODEL
 )
 
 # Role-specific model assignments
-MERMAID_MODEL = GLM_45_AIR_MODEL     # Optimized for Mermaid rendering
-STANDARD_MODEL = GEMMA_3_12B_MODEL   # Balanced model for standard tasks
-REASONING_MODELS = [TRINITY_LARGE_MODEL, NEMOTRON_3_SUPER_MODEL]
+MERMAID_MODEL = GEMINI_FLASH_MODEL
+STANDARD_MODEL = GEMINI_FLASH_MODEL
+REASONING_MODELS = [GEMINI_FLASH_MODEL]
+
+# Model for intent classification
+INTENT_CLASSIFIER_MODEL = GEMINI_FLASH_MODEL
 
 # ==================== LLM PARAMETERS ====================
 
@@ -148,19 +138,12 @@ MAX_TEXT_LENGTH = int(
 
 # ==================== API SETTINGS ====================
 
-# OpenRouter API configuration
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_BASE_URL = os.getenv(
-    "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
-)
+# Security
+# If set, the Streamlit app will require this password to access the UI.
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 
-# OpenRouter site identification (used for rankings on openrouter.ai)
-OPENROUTER_SITE_URL = os.getenv(
-    "OPENROUTER_SITE_URL", "https://github.com"
-)
-OPENROUTER_SITE_TITLE = os.getenv(
-    "OPENROUTER_SITE_TITLE", "ResearchHelp AI Analysis System"
-)
+# Gemini API configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # ==================== VALIDATION ====================
 
@@ -169,14 +152,14 @@ def validate_config():
     """Validate required configuration settings."""
     errors = []
 
-    if not OPENROUTER_API_KEY:
-        errors.append("OPENROUTER_API_KEY is not set in environment variables")
+    if not GEMINI_API_KEY:
+        errors.append("GEMINI_API_KEY is not set in environment variables")
     elif (
-        "placeholder" in OPENROUTER_API_KEY.lower()
-        or "your_" in OPENROUTER_API_KEY.lower()
+        "placeholder" in GEMINI_API_KEY.lower()
+        or "your_" in GEMINI_API_KEY.lower()
     ):
         errors.append(
-            "OPENROUTER_API_KEY appears to be a placeholder - please set a valid API key"
+            "GEMINI_API_KEY appears to be a placeholder - please set a valid API key"
         )
 
     if errors:
