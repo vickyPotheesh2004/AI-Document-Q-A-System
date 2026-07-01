@@ -6,7 +6,10 @@ ResearchHelp-AI Analysis System is a next-generation, multi-modal document analy
 
 ## ✨ Key Differentiators & Upgrades
 
-- **[NEW] Dynamic 44-Domain Adaptation**: The system automatically detects research domains (e.g., Quantum Computing, Software Engineering, Bioinformatics) in your queries and documents, instantly injecting expert-level analytical frameworks, formatting rules (like LaTeX or architectural paradigms), and specialized lenses into its responses.
+- **[NEW] 100% Local Inference & Total Privacy**: Zero data leaves your machine. Upload confidential documents, patents, and private code bases with complete security.
+- **[NEW] Smart Local Model Routing**: Automatically distributes workloads across three specialized local LLMs (Llama 3.1 8B, Qwen 2.5 3B, Gemma 3 4B) depending on task complexity and type.
+- **[NEW] Zero API Costs & Unlimited Queries**: Replaced expensive cloud APIs with local Ollama endpoints. Run millions of tokens without paying a single cent or hitting rate limits.
+- **Dynamic 44-Domain Adaptation**: The system automatically detects research domains (e.g., Quantum Computing, Software Engineering, Bioinformatics) in your queries and documents, instantly injecting expert-level analytical frameworks, formatting rules (like LaTeX or architectural paradigms), and specialized lenses into its responses.
 - **🎓 IEEE Official Paper Generator**: Synthesize academic manuscripts complete with Abstracts, Literature Reviews, and Methodologies, auto-formatted into professional Times New Roman, two-column style `.docx` files.
 - **🧪 Simple English Deep Analysis**: Specialized research mode that breaks down complex domains into simple, jargon-free English using real-world analogies.
 - **⚡ Token-by-Token Streaming**: Answers stream in real-time. No more waiting for a full response.
@@ -27,16 +30,18 @@ ResearchHelp-AI Analysis System is a next-generation, multi-modal document analy
 - Intelligent chunking mechanism to handle massive documents seamlessly.
 
 ### 2. Advanced Intent Classification System
-At the heart of ResearchHelp-AI-anaylsis-system is a smart routing engine that categorizes every query before processing. This ensures the correct prompt template and analysis logic is applied.
+At the heart of ResearchHelp-AI-anaylsis-system is a smart routing engine that categorizes every query before processing. This ensures the correct prompt template, specialized LLM model, and analysis logic are applied.
 
-| Intent Category | Trigger Example | Functionality |
-|-----------------|-----------------|---------------|
-| 📄 `document_qa` | "What hardware is used?" | Direct factual Q&A from the document context. |
-| 💡 `suggestion_request` | "How can we improve this?" | Gap analysis and actionable improvement suggestions. |
-| 🔬 `research_addon` | "Can we add solar power?" | Technical feasibility assessment and risk analysis. |
-| 🧪 `research_analysis` | "Explain Quantum Computing" | Deep analysis in **VERY SIMPLE English** with analogies. |
-| 🎓 `ieee_paper_gen` | "Generate an IEEE paper" | Synthesizes a formal research manuscript in DOCX format. |
-| 🚫 `off_topic` | "What is the weather?" | Polite redirection to keep the session focused. |
+| Intent Category | Trigger Example | Local LLM Assigned | Functionality |
+|-----------------|-----------------|--------------------|---------------|
+| 📄 `document_qa` | "What hardware is used?" | `llama3.1:8b` (General) | Direct factual Q&A from the document context. |
+| 💡 `suggestion_request` | "How can we improve this?" | `gemma3:4b` (Reasoning) | Gap analysis and actionable improvement suggestions. |
+| 🔬 `research_addon` | "Can we add solar power?" | `gemma3:4b` (Reasoning) | Technical feasibility assessment and risk analysis. |
+| 🧪 `research_analysis` | "Explain Quantum Computing" | `gemma3:4b` (Reasoning) | Deep analysis in **VERY SIMPLE English** with analogies. |
+| 🎓 `ieee_paper_gen` | "Generate an IEEE paper" | `llama3.1:8b` (General) | Synthesizes a formal research manuscript in DOCX format. |
+| 🚫 `off_topic` | "What is the weather?" | `llama3.1:8b` (General) | Polite redirection to keep the session focused. |
+
+*Note: Any coding tasks or **Mermaid Diagram Generation** requests are always routed to `qwen2.5:3b` for structural correctness.*
 
 ### 3. Dynamic Domain-Specific Expert Routing
 ResearchHelp-AI Analysis System doesn't just categorize the *intent* of your question; it identifies the *domain* you are researching. 
@@ -52,24 +57,24 @@ ResearchHelp-AI Analysis System acts as an automated collaborative researcher:
 3. **Scholarly Prompting**: The `IEEE_PAPER_PROMPT` enforces a strict academic structure (Abstract, Keywords, Introduction, Literature Review, Methodology, Results, Conclusion, References).
 4. **Professional Output**: Generates an instantly downloadable `IEEE_Paper.docx` formatted to simulate professional publication standards.
 
-### 4. Hybrid Retrieval Engine (Semantic + BM25)
+### 5. Hybrid Retrieval Engine (Semantic + BM25)
 ResearchHelp-AI Analysis System ensures no piece of context is missed by running a dual-channel retrieval system:
 - **70% Semantic Search (ChromaDB)**: Finds conceptually relevant passages using `all-mpnet-base-v2` dense embeddings, even if different terminology is used.
 - **30% Keyword Search (BM25 Okapi)**: Catches precise, exact-match technical terms that dense embeddings might underrate.
 - **Re-Ranking Pipeline**: Merges, deduplicates, and ranks the top 12 chunks for maximum context injection into the LLM.
 
-### 5. Intelligent Topic Segmentation
+### 6. Intelligent Topic Segmentation
 Documents aren't just split randomly; they are segmented semantically:
 - **Cosine Similarity Drops**: Detects topic shifts dynamically when consecutive sentence embeddings drop below a 0.78 similarity threshold.
 - **LLM Context Titling**: Automatically generates concise 2-word titles for every semantic segment.
 - **Abbreviation-Aware Splitting**: Prevents accidental splits on "Dr.", "e.g.", ensuring complete sentences.
 
-### 6. Auto-Generated Document Insights
+### 7. Auto-Generated Document Insights
 The moment your documents are ingested, ResearchHelp-AI Analysis System provides:
 - **Document Overview**: A structured, high-level summary of the entire corpus.
 - **AI Suggestions**: 5 categorized, actionable research suggestions (Improvement, Innovation, Gap Analysis, Optimization).
 
-### 7. Session Analytics & Complete Transparency
+### 8. Session Analytics & Complete Transparency
 - **Real-Time Dashboards**: Track source usage, topics explored, and queries asked in the sidebar.
 - **Expandable Source Cards**: Every AI response includes clickable citations showing exactly which document chunk was used, its relevance score, and the original text.
 - **Logic Traces**: View the underlying LLM "chain of thought" to understand *how* it arrived at its conclusions.
@@ -80,9 +85,12 @@ The moment your documents are ingested, ResearchHelp-AI Analysis System provides
 
 - **Frontend Interface**: [Streamlit](https://streamlit.io/) with custom CSS / theming.
 - **Vector Database**: [ChromaDB](https://www.trychroma.com/) (Persistent local storage).
-- **AI & ML Models**:
-  - LLM Reasoning & Intent: `arcee-ai/trinity-large-preview:free` (via OpenRouter).
-  - Embeddings: `sentence-transformers/all-mpnet-base-v2` (768-dim, locally executed).
+- **AI & ML Models (Local)**:
+  - **Ollama Engine**: Running local inference via HTTP REST API.
+  - **Llama 3.1 8B**: Primary general Q&A and standard classification tasks.
+  - **Qwen 2.5 3B**: Coding and Mermaid diagram rendering (ensuring structural validation).
+  - **Gemma 3 4B**: Advanced logical reasoning and multi-document synthesis.
+  - **Embeddings**: `sentence-transformers/all-mpnet-base-v2` (768-dim, locally executed).
 - **Retrieval Infrastructure**: `rank-bm25` (Okapi algorithm) + ChromaDB native similarity search.
 - **Document Parsing Suite**: `PyMuPDF (fitz)` (PDF), `python-docx` (Word), `pytesseract` + `Pillow` (Images), `pandas` (Tables).
 - **Multimedia Rendering**:
@@ -97,6 +105,8 @@ The moment your documents are ingested, ResearchHelp-AI Analysis System provides
 ### Prerequisites
 - **Python 3.10+** installed on your system.
 - **Git** installed on your system.
+- **Ollama**: Required for running the local LLMs.
+  - Download and install from [Ollama's Official Website](https://ollama.com).
 - **Tesseract OCR**: Required for extracting text from images and scanned PDFs.
   - **Windows**: Download the installer from [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki) (Default path: `C:\Program Files\Tesseract-OCR\tesseract.exe`).
   - **macOS**: `brew install tesseract`
@@ -134,13 +144,21 @@ The system relies on the following core libraries defined in `requirements.txt`:
 - **Computer Vision (OCR)**: `pytesseract`, `Pillow`
 - **NLP & Embeddings**: `sentence-transformers` (MPNet), `scikit-learn` (Cosine Similarity), `nltk` (Sentence Tokenization)
 - **Vector Search & Retrieval**: `chromadb` (Semantic DB), `rank-bm25` (Keyword Algorithm)
-- **LLM Integration**: `openai` (OpenRouter connectivity), `python-dotenv` (Key management)
+- **Local LLM Integration**: `requests` (Ollama connection), `python-dotenv` (Key management)
 
-### 4. Configure Environment
+### 4. Pull Local LLM Models
+Before running the system, pull the three specialized LLM models using Ollama:
+```bash
+ollama pull llama3.1:8b
+ollama pull qwen2.5:3b
+ollama pull gemma3:4b
+```
+
+### 5. Configure Environment
 1. Create a file named `.env` in the root directory of the project.
-2. Add your **OpenRouter API Key** (or standard OpenAI API key if modifying the base URL).
+2. Add your Ollama base URL (defaults to `http://localhost:11434` if not provided).
    ```env
-   OPENROUTER_API_KEY=your_api_key_here
+   OLLAMA_BASE_URL=http://localhost:11434
    ```
 
 ---
@@ -196,26 +214,21 @@ For production deployment, consider adding:
 ---
 
 ## 📋 System Testing
-
-Run different tests based on your needs:
-
-### Quick System Diagnostic
+ 
+ Run different tests based on your needs:
+ 
+### 1. Ollama Migration Test Suite (Pytest Audit)
+To run the comprehensive suite of 43 tests validating configuration, model routing, client request payloads, streaming, and formatting limits:
 ```bash
-python test_system.py
+pytest tests/test_ollama_migration.py -v
 ```
-Verifies API connection, ChromaDB, and basic pipeline.
+*(Note: These tests mock external requests so they run instantly without needing a running Ollama server)*
 
-### Full A-Z System Test
-```bash
-python test_full_system.py
-```
-Comprehensive test covering document ingestion, hybrid retrieval, intent classification, and export generation.
-
-### Pipeline Integration Test
+### 2. Live Diagnostics
+To run basic RAG and embedding tests on your live system:
 ```bash
 python test_pipeline.py
 ```
-Tests the RAG pipeline components.
-
----
-Built with ❤️ and Python.
+ 
+ ---
+ Built with ❤️ and Python.

@@ -85,9 +85,8 @@ IEEE_PAPER_KEYWORDS = re.compile(
 class IntentClassifier:
     def __init__(self):
         llm_client = get_llm_client()
-        self.client = llm_client.client
-        self.llm_client = llm_client  # Use the full client for helper methods
-        self.model = INTENT_CLASSIFIER_MODEL  # Use optimized model from config
+        self.llm_client = llm_client
+        self.model = INTENT_CLASSIFIER_MODEL  # llama3.1:8b for fast classification
         # Use OrderedDict with max size for LRU-like caching
         self._cache = OrderedDict()
         self._cache_max_size = MAX_CACHE_SIZE

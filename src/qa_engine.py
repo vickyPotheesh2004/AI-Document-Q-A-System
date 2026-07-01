@@ -65,11 +65,10 @@ class QAEngine:
     def __init__(self):
         llm_client = get_llm_client()
         if not llm_client.is_available():
-            raise ValueError("OPENROUTER_API_KEY not found in environment variables.")
+            raise ValueError("Ollama is not running. Start it with: ollama serve")
         
-        self.client = llm_client.client
-        self.llm_client = llm_client  # Use the full client for helper methods
-        self.model = llm_client.trinity_model  # Use Nemotron 3 - reasoning for Q&A
+        self.llm_client = llm_client
+        self.model = llm_client.primary_model  # llama3.1:8b for Q&A
 
         self.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
         self.collection = self.chroma_client.get_or_create_collection(name="active_session")
@@ -303,40 +302,20 @@ class QAEngine:
         messages.append({"role": "user", "content": question})
 
         try:
-            @retry(
-                retry=retry_if_exception_type(Exception),
-                wait=wait_exponential(multiplier=2, min=2, max=10),
-                stop=stop_after_attempt(3),
-                reraise=True
+            stream = self.llm_client.create_chat_completion_stream(
+                model=self.model,
+                messages=messages,
+                max_tokens=QA_MAX_TOKENS,
+                temperature=QA_TEMPERATURE,
             )
-            def _create_stream():
-                sys_inst, contents = self.llm_client._convert_messages(messages)
-                from google.genai import types
-                config = types.GenerateContentConfig(
-                    system_instruction=sys_inst,
-                    max_output_tokens=QA_MAX_TOKENS,
-                    temperature=QA_TEMPERATURE
-                )
-                return self.client.models.generate_content_stream(
-                    model=self.model,
-                    contents=contents,
-                    config=config
-                )
-            
-            stream = _create_stream()
 
             yield {"type": "meta", "intent": intent_result, "sources": source_citations[:5], "confidence": confidence_result}
 
             full_content = ""
             full_reasoning = ""
-            for chunk in stream:
-                try:
-                    if chunk.text:
-                        token = chunk.text
-                        full_content += token
-                        yield {"type": "token", "token": token}
-                except Exception:
-                    pass
+            for token in stream:
+                full_content += token
+                yield {"type": "token", "token": token}
 
             # Finalize reasoning and content
             if full_reasoning:
@@ -361,13 +340,12 @@ class QAEngine:
 
         except Exception as e:
             error_msg = str(e)
-            if "429" in error_msg:
-                if "daily" in error_msg.lower() or "quota" in error_msg.lower():
-                    user_msg = "🛑 **Daily Free Quota Exhausted**\n\nYou've reached the OpenRouter daily limit for free models (50 requests). \n\n**Solutions**:\n1. Wait 24 hours for reset.\n2. [Add credits ($5)](https://openrouter.ai/settings/credits) to increase limit to 1,000+ requests/day.\n3. Try a different free model in `.env`."
-                else:
-                    user_msg = "⏳ **Model is Busy (Rate Limit)**\n\nThe free model is currently receiving too many requests. \n\n**To Fix**: Wait 10-20 seconds and try again, or [add credits](https://openrouter.ai/settings/credits) for priority access."
+            if "Connection" in error_msg or "connect" in error_msg.lower():
+                user_msg = "🛑 **Ollama Not Reachable**\n\nCannot connect to the local Ollama server.\n\n**Solutions**:\n1. Make sure Ollama is running: `ollama serve`\n2. Check if the model is pulled: `ollama pull llama3.1:8b`"
+            elif "timeout" in error_msg.lower():
+                user_msg = "⏳ **Model Timed Out**\n\nThe local model is taking too long. This can happen on the first request while the model loads.\n\n**To Fix**: Wait a moment and try again."
             elif "500" in error_msg:
-                user_msg = "🛠️ **Model Provider Error (500)**\n\nThe model provider is experiencing temporary issues. \n\n**To Fix**: Please try again in 30-60 seconds. If it persists, the model may be undergoing maintenance."
+                user_msg = "🛠️ **Ollama Server Error (500)**\n\nThe local Ollama server encountered an error.\n\n**To Fix**: Check Ollama logs and try again."
             else:
                 user_msg = f"An error occurred while generating the response. Please try again.\n\n*Details: {error_msg[:200]}*"
             
@@ -507,11 +485,10 @@ class QAEngine:
             }
         except Exception as e:
             error_msg = str(e)
-            if "429" in error_msg:
-                if "daily" in error_msg.lower() or "quota" in error_msg.lower():
-                    user_msg = "🛑 **Daily Free Quota Exhausted** — You've reached the OpenRouter daily limit. Please wait 24h or [add credits](https://openrouter.ai/settings/credits) for higher limits."
-                else:
-                    user_msg = "⏳ **Model is Busy** — Rate limit reached for this free model. Please wait a few seconds and try again."
+            if "Connection" in error_msg or "connect" in error_msg.lower():
+                user_msg = "🛑 **Ollama Not Reachable** — Cannot connect to the local Ollama server. Make sure Ollama is running: `ollama serve`"
+            elif "timeout" in error_msg.lower():
+                user_msg = "⏳ **Model Timed Out** — The local model is taking too long. Try again in a moment."
             else:
                 user_msg = f"An error occurred while generating the response. Please try again.\n\n*Details: {error_msg[:200]}*"
             return {

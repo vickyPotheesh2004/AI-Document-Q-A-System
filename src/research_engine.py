@@ -25,9 +25,8 @@ logger = get_logger(__name__)
 class ResearchEngine:
     def __init__(self):
         llm_client = get_llm_client()
-        self.client = llm_client.client
-        self.llm_client = llm_client  # Use the full client for helper methods
-        self.model = llm_client.nemotron_model  # Use Nemotron 3 Super - best reasoning
+        self.llm_client = llm_client
+        self.model = llm_client.reasoning_model  # gemma3:4b for deep analysis
         logger.info(f"ResearchEngine initialized with model: {self.model}")
 
     def generate_document_overview(

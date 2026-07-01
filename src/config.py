@@ -4,6 +4,7 @@ All configurable settings should be defined here and accessed via environment va
 """
 
 import os
+import requests
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -19,30 +20,33 @@ TESSERACT_PATH = os.getenv(
 # ChromaDB persistence path
 CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./chroma_db")
 
-# ==================== LLM MODELS ====================
+# ==================== OLLAMA LLM MODELS ====================
 
-# Free model identifiers for Gemini
-# Model 1: Gemini 3 Flash Preview - Fast general chat (best for simple/fast tasks)
-GEMINI_FLASH_MODEL = "gemini-3-flash-preview"
+# Ollama server URL
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+# Model 1: Llama 3.1 8B — Primary general-purpose model
+OLLAMA_PRIMARY_MODEL = os.getenv("OLLAMA_PRIMARY_MODEL", "llama3.1:8b")
+
+# Model 2: Qwen 2.5 3B — Coding & diagram generation (always used for Mermaid)
+OLLAMA_CODING_MODEL = os.getenv("OLLAMA_CODING_MODEL", "qwen2.5:3b")
+
+# Model 3: Gemma 3 4B — Advanced reasoning & deep analysis
+OLLAMA_REASONING_MODEL = os.getenv("OLLAMA_REASONING_MODEL", "gemma3:4b")
 
 # Default LLM model for general Q&A
+DEFAULT_LLM_MODEL = OLLAMA_PRIMARY_MODEL
 
-DEFAULT_LLM_MODEL = os.getenv(
-    "LLM_MODEL", GEMINI_FLASH_MODEL  # Use Gemini Flash for Q&A
-)
-
-# Model for research engine
-RESEARCH_LLM_MODEL = os.getenv(
-    "RESEARCH_LLM_MODEL", GEMINI_FLASH_MODEL
-)
+# Model for research engine (advanced reasoning)
+RESEARCH_LLM_MODEL = OLLAMA_REASONING_MODEL
 
 # Role-specific model assignments
-MERMAID_MODEL = GEMINI_FLASH_MODEL
-STANDARD_MODEL = GEMINI_FLASH_MODEL
-REASONING_MODELS = [GEMINI_FLASH_MODEL]
+MERMAID_MODEL = OLLAMA_CODING_MODEL
+STANDARD_MODEL = OLLAMA_PRIMARY_MODEL
+REASONING_MODELS = [OLLAMA_REASONING_MODEL]
 
-# Model for intent classification
-INTENT_CLASSIFIER_MODEL = GEMINI_FLASH_MODEL
+# Model for intent classification (fast, lightweight)
+INTENT_CLASSIFIER_MODEL = OLLAMA_PRIMARY_MODEL
 
 # ==================== LLM PARAMETERS ====================
 
@@ -142,25 +146,45 @@ MAX_TEXT_LENGTH = int(
 # If set, the Streamlit app will require this password to access the UI.
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
 
-# Gemini API configuration
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
 # ==================== VALIDATION ====================
 
 
 def validate_config():
-    """Validate required configuration settings."""
+    """Validate required configuration settings — checks Ollama connectivity."""
     errors = []
 
-    if not GEMINI_API_KEY:
-        errors.append("GEMINI_API_KEY is not set in environment variables")
-    elif (
-        "placeholder" in GEMINI_API_KEY.lower()
-        or "your_" in GEMINI_API_KEY.lower()
-    ):
+    try:
+        resp = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if resp.status_code != 200:
+            errors.append(
+                f"Ollama server at {OLLAMA_BASE_URL} returned status {resp.status_code}. "
+                "Make sure Ollama is running (`ollama serve`)."
+            )
+        else:
+            # Check that required models are available
+            available_models = [m.get("name", "") for m in resp.json().get("models", [])]
+            for model_name, role in [
+                (OLLAMA_PRIMARY_MODEL, "Primary (Q&A)"),
+                (OLLAMA_CODING_MODEL, "Coding (Mermaid)"),
+                (OLLAMA_REASONING_MODEL, "Reasoning (Analysis)"),
+            ]:
+                # Match model name with or without tag suffix
+                found = any(
+                    m == model_name or m.startswith(model_name.split(":")[0] + ":")
+                    for m in available_models
+                )
+                if not found:
+                    errors.append(
+                        f"Model '{model_name}' ({role}) not found in Ollama. "
+                        f"Run: ollama pull {model_name}"
+                    )
+    except requests.ConnectionError:
         errors.append(
-            "GEMINI_API_KEY appears to be a placeholder - please set a valid API key"
+            f"Cannot connect to Ollama at {OLLAMA_BASE_URL}. "
+            "Make sure Ollama is installed and running (`ollama serve`)."
         )
+    except Exception as e:
+        errors.append(f"Error checking Ollama: {str(e)}")
 
     if errors:
         return False, errors

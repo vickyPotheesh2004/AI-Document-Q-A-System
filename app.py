@@ -228,7 +228,10 @@ if not is_valid:
     for error in config_errors:
         st.error(f"  • {error}")
     st.info(
-        "Please set up your .env file with a valid OpenRouter API key. Copy .env.example to .env and add your key."
+        "Please make sure Ollama is running (`ollama serve`) and the required models are pulled:\n"
+        "• `ollama pull llama3.1:8b`\n"
+        "• `ollama pull qwen2.5:3b`\n"
+        "• `ollama pull gemma3:4b`"
     )
     st.stop()
 
@@ -251,7 +254,7 @@ if APP_PASSWORD:
         )
         password_col1, password_col2, password_col3 = st.columns([1, 2, 1])
         with password_col2:
-            st.warning("⚠️ **Security Notice:** The system runs on a shared LLM API key. Access is restricted.", icon="🔒")
+            st.warning("⚠️ **Security Notice:** The system runs on local Ollama LLMs. Access is restricted.", icon="🔒")
             pwd_input = st.text_input("Enter Password", type="password")
             if st.button("Access System", use_container_width=True):
                 if pwd_input == APP_PASSWORD:
