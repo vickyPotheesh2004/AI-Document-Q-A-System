@@ -545,5 +545,69 @@ class TestCrossModuleIntegration:
                 )
 
 
+# ===========================================================================
+# 9. SIDEBAR STATUS CARD TESTS
+# ===========================================================================
+
+class TestSidebarStatus:
+    """Test the real-time Ollama status card helper in app.py."""
+
+    @patch("requests.get")
+    @patch("streamlit.markdown")
+    def test_status_card_online(self, mock_markdown, mock_get):
+        """Test status card when Ollama is online with all models loaded."""
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "models": [
+                {"name": "llama3.1:8b"},
+                {"name": "qwen2.5:3b"},
+                {"name": "gemma3:4b"},
+            ]
+        }
+        mock_get.return_value = mock_resp
+
+        # Mock st.set_page_config and other Streamlit side effects on import
+        with patch("streamlit.set_page_config"), \
+             patch("streamlit.error"), \
+             patch("streamlit.info"), \
+             patch("streamlit.stop"), \
+             patch("src.qa_engine.QAEngine"):
+             
+            from app import render_ollama_status_sidebar
+            render_ollama_status_sidebar()
+        
+        # Verify markdown was called with HTML containing status elements
+        assert mock_markdown.called
+        html_arg = mock_markdown.call_args[0][0]
+        assert "Online" in html_arg
+        assert "status-connected" in html_arg
+        assert "LOADED" in html_arg.upper()
+
+    @patch("requests.get")
+    @patch("streamlit.markdown")
+    def test_status_card_offline(self, mock_markdown, mock_get):
+        """Test status card when Ollama is offline."""
+        mock_get.side_effect = Exception("Connection refused")
+        
+        with patch("streamlit.set_page_config"), \
+             patch("streamlit.error"), \
+             patch("streamlit.info"), \
+             patch("streamlit.stop"), \
+             patch("src.qa_engine.QAEngine"):
+             
+            from app import render_ollama_status_sidebar
+            render_ollama_status_sidebar()
+        
+        assert mock_markdown.called
+        html_arg = mock_markdown.call_args[0][0]
+        assert "Offline" in html_arg
+        assert "status-disconnected" in html_arg
+        assert "MISSING" in html_arg.upper()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+

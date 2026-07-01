@@ -214,6 +214,72 @@ def speak_text(text, key):
     components.html(html, height=45)
 
 
+def render_ollama_status_sidebar():
+    """Queries local Ollama tags API to render a beautiful real-time status card in the sidebar."""
+    import requests
+    from src.config import OLLAMA_BASE_URL, OLLAMA_PRIMARY_MODEL, OLLAMA_CODING_MODEL, OLLAMA_REASONING_MODEL
+    
+    connected = False
+    models_status = {
+        OLLAMA_PRIMARY_MODEL: "Missing",
+        OLLAMA_CODING_MODEL: "Missing",
+        OLLAMA_REASONING_MODEL: "Missing"
+    }
+    
+    try:
+        resp = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=1.5)
+        if resp.status_code == 200:
+            connected = True
+            available_models = [m.get("name", "") for m in resp.json().get("models", [])]
+            for req_model in models_status.keys():
+                found = any(
+                    m == req_model or m.startswith(req_model.split(":")[0] + ":")
+                    for m in available_models
+                )
+                if found:
+                    models_status[req_model] = "Loaded"
+    except Exception:
+        pass
+
+    dot_class = "status-connected" if connected else "status-disconnected"
+    status_label = "Online" if connected else "Offline"
+    status_color = "#22c55e" if connected else "#ef4444"
+    
+    status_html = f"""
+    <div class="status-card">
+        <div class="status-header">
+            <span>⚙️ Local Ollama Engine</span>
+            <span style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot {dot_class}"></span>
+                <span style="font-size: 0.75rem; font-weight: 600; color: {status_color};">{status_label}</span>
+            </span>
+        </div>
+        <div style="border-top: 1px solid rgba(74, 69, 160, 0.2); margin-top: 6px; padding-top: 6px;">
+            <div class="model-row">
+                <span>🦙 General: <code>{OLLAMA_PRIMARY_MODEL}</code></span>
+                <span class="model-badge" style="background: {'rgba(34, 197, 94, 0.15)' if models_status[OLLAMA_PRIMARY_MODEL] == 'Loaded' else 'rgba(239, 68, 68, 0.12)'}; color: {'#15803d' if models_status[OLLAMA_PRIMARY_MODEL] == 'Loaded' else '#b91c1c'} !important;">
+                    {models_status[OLLAMA_PRIMARY_MODEL]}
+                </span>
+            </div>
+            <div class="model-row">
+                <span>🐉 Coding/Mermaid: <code>{OLLAMA_CODING_MODEL}</code></span>
+                <span class="model-badge" style="background: {'rgba(34, 197, 94, 0.15)' if models_status[OLLAMA_CODING_MODEL] == 'Loaded' else 'rgba(239, 68, 68, 0.12)'}; color: {'#15803d' if models_status[OLLAMA_CODING_MODEL] == 'Loaded' else '#b91c1c'} !important;">
+                    {models_status[OLLAMA_CODING_MODEL]}
+                </span>
+            </div>
+            <div class="model-row">
+                <span>🧪 Reasoning: <code>{OLLAMA_REASONING_MODEL}</code></span>
+                <span class="model-badge" style="background: {'rgba(34, 197, 94, 0.15)' if models_status[OLLAMA_REASONING_MODEL] == 'Loaded' else 'rgba(239, 68, 68, 0.12)'}; color: {'#15803d' if models_status[OLLAMA_REASONING_MODEL] == 'Loaded' else '#b91c1c'} !important;">
+                    {models_status[OLLAMA_REASONING_MODEL]}
+                </span>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(status_html, unsafe_allow_html=True)
+
+
+
 st.set_page_config(
     page_title="AI Powered Document Q&A System",
     page_icon="🔬",
@@ -309,6 +375,9 @@ html {
 /* Fix for expanders - smooth expand/collapse */
 .streamlit-expanderHeader {
     transition: background-color 0.2s ease;
+    border-radius: 8px !important;
+    background-color: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
 }
 
 /* Fix for chat message rendering */
@@ -326,6 +395,7 @@ div[data-testid="stMarkdownContainer"] {
     text-align: justify !important;
     text-justify: inter-word;
     line-height: 1.8;
+    color: #334155;
 }
 
 /* Fix for source cards scrolling */
@@ -334,13 +404,64 @@ div[data-testid="stMarkdownContainer"] {
     word-wrap: break-word;
 }
 
+/* App Background Override (Light Premium) */
 [data-testid="stAppViewContainer"] {
     font-family: 'Inter', sans-serif;
-    background-color: #0f0c29;
+    background-color: #f8fafc;
+}
+
+/* Sidebar Styling Override (Clean Light-Gray) */
+[data-testid="stSidebar"] {
+    background-color: #f1f5f9;
+    border-right: 1px solid #e2e8f0;
+    color: #1e293b;
+}
+
+/* Force all sidebar text, labels, and widgets to use dark readable colors */
+[data-testid="stSidebar"] * {
+    color: #1e293b;
+}
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] h4 {
+    color: #0f172a !important;
+}
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] div {
+    color: #1e293b;
+}
+[data-testid="stSidebar"] .stMarkdown p {
+    color: #334155 !important;
+}
+[data-testid="stSidebar"] small {
+    color: #475569 !important;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+    background-color: #ffffff;
+    border-color: #cbd5e1;
+    color: #334155;
+}
+[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] span,
+[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] p,
+[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] small {
+    color: #475569 !important;
+}
+[data-testid="stSidebar"] button {
+    color: #ffffff !important;
+    background-color: #4f46e5 !important;
+    border-color: #4338ca !important;
+}
+[data-testid="stSidebar"] button:hover {
+    background-color: #4338ca !important;
+}
+[data-testid="stSidebar"] hr {
+    border-color: #cbd5e1 !important;
 }
 
 /* Voice Interaction UI — mic button inside chat input bar */
-/* Position the mic button fixed at the bottom-right, overlaying the chat input bar */
 [data-testid="stBottom"] {
     position: relative;
 }
@@ -358,13 +479,13 @@ div[data-testid="stMarkdownContainer"] {
     height: 40px !important;
     min-height: 40px !important;
     border-radius: 50% !important;
-    background: linear-gradient(135deg, #302b63, #24243e) !important;
+    background: linear-gradient(135deg, #4f46e5, #06b6d4) !important;
     color: white !important;
-    border: 1px solid #4a45a0 !important;
+    border: 1px solid #818cf8 !important;
     padding: 0 !important;
     font-size: 1.15rem !important;
     cursor: pointer !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.25) !important;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
     display: flex !important;
     align-items: center !important;
@@ -373,133 +494,152 @@ div[data-testid="stMarkdownContainer"] {
 
 .mic-overlay-btn button:hover {
     transform: scale(1.12) !important;
-    box-shadow: 0 4px 14px rgba(118, 75, 162, 0.5) !important;
-    border-color: #a8edea !important;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4) !important;
+    border-color: #a5b4fc !important;
 }
 
 .mic-overlay-btn button:active {
     transform: scale(0.93) !important;
 }
 
-/* Add right padding to chat input so text doesn't go behind mic button */
-[data-testid="stChatInput"] textarea,
-[data-testid="stChatInput"] input {
-    padding-right: 100px !important;
-}
+
 
 @keyframes pulse-red {
-    0% { box-shadow: 0 0 0 0 rgba(255, 65, 108, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(255, 65, 108, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 65, 108, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 /* Fix for st.tabs rendering and visibility */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 10px;
+    gap: 8px;
+    border-bottom: 2px solid #e2e8f0;
 }
 .stTabs [data-baseweb="tab"] {
     border-radius: 8px 8px 0 0;
-    padding: 10px 20px;
-    background-color: #1e1e2e;
+    padding: 8px 16px;
+    background-color: #e2e8f0;
+    color: #475569;
+    font-weight: 500;
+    transition: all 0.2s ease;
 }
 .stTabs [aria-selected="true"] {
-    background-color: #302b63 !important;
+    background-color: #4f46e5 !important;
+    color: #ffffff !important;
+    font-weight: 600;
 }
 
+/* Main Header (Clean Premium Gradient) */
 .main-header {
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    padding: 1.8rem 2rem;
+    background: linear-gradient(135deg, #e0e7ff 0%, #f3e8ff 100%);
+    padding: 2rem;
     border-radius: 16px;
     margin-bottom: 1.5rem;
-    color: white;
+    color: #1e1b4b;
     text-align: center;
-    box-shadow: 0 8px 32px rgba(48, 43, 99, 0.3);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.1);
 }
 .main-header h1 {
-    margin: 0; font-size: 1.8rem; font-weight: 700;
-    background: linear-gradient(90deg, #a8edea, #fed6e3);
+    margin: 0; font-size: 1.85rem; font-weight: 800;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .main-header p {
-    margin: 0.4rem 0 0; font-size: 0.9rem; opacity: 0.8; color: #c0c0d0;
+    margin: 0.5rem 0 0; font-size: 0.95rem; font-weight: 500; color: #4338ca; opacity: 0.95;
 }
 
+/* Intent Badges (Light Pastel Colors) */
 .intent-badge {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 14px; border-radius: 20px; font-size: 0.78rem;
-    font-weight: 600; margin-bottom: 8px;
+    padding: 4px 12px; border-radius: 20px; font-size: 0.76rem;
+    font-weight: 700; margin-bottom: 8px;
+    text-transform: uppercase;
 }
-.intent-document_qa { background: #1a3a5c; color: #7ec8f0; border: 1px solid #2a5a8c; }
-.intent-suggestion_request { background: #3a2a1a; color: #f0c87e; border: 1px solid #6a4a2a; }
-.intent-research_addon { background: #1a3a2a; color: #7ef0a8; border: 1px solid #2a6a4a; }
-.intent-off_topic { background: #3a1a1a; color: #f07e7e; border: 1px solid #6a2a2a; }
+.intent-document_qa { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.intent-suggestion_request { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.intent-research_addon { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.intent-off_topic { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
 
+/* Source Citation Card (Premium White Style) */
 .source-card {
-    background: #1e1e2e; border: 1px solid #313147; border-radius: 10px;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
     padding: 12px 16px; margin-bottom: 8px; font-size: 0.82rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
 }
 .source-card .source-header {
     display: flex; justify-content: space-between; margin-bottom: 4px;
+    align-items: center;
 }
-.source-card .source-file { color: #a8edea; font-weight: 600; }
-.source-card .source-topic { color: #fed6e3; font-size: 0.75rem; }
+.source-card .source-file { color: #4f46e5; font-weight: 700; }
+.source-card .source-topic { color: #6d28d9; font-size: 0.75rem; font-weight: 600; }
 .source-card .source-score {
-    background: #302b63; color: #a8edea; padding: 2px 8px;
-    border-radius: 10px; font-size: 0.7rem; font-weight: 600;
+    background: #e0e7ff; color: #4f46e5; padding: 2px 8px;
+    border-radius: 10px; font-size: 0.7rem; font-weight: 700;
 }
-.source-card .source-preview { color: #888; font-size: 0.78rem; margin-top: 4px; }
+.source-card .source-preview { color: #475569; font-size: 0.78rem; margin-top: 4px; line-height: 1.5; }
 
+/* Stats Grid & Cards */
 .stats-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0;
 }
 .stat-card {
-    background: linear-gradient(135deg, #1e1e2e, #2a2a3e);
-    border: 1px solid #313147; border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0; border-radius: 10px;
     padding: 12px; text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 .stat-card .stat-value {
-    font-size: 1.5rem; font-weight: 700;
-    background: linear-gradient(90deg, #a8edea, #fed6e3);
+    font-size: 1.5rem; font-weight: 800;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.stat-card .stat-label { font-size: 0.72rem; color: #888; margin-top: 2px; }
+.stat-card .stat-label { font-size: 0.72rem; color: #64748b; font-weight: 600; margin-top: 2px; }
 
+/* Suggestions Cards */
 .suggestion-card {
-    background: #1e1e2e; border: 1px solid #313147; border-radius: 10px;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
     padding: 12px 16px; margin-bottom: 8px; cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
 .suggestion-card:hover {
-    border-color: #a8edea; transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(168, 237, 234, 0.1);
+    border-color: #6366f1; transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(99, 102, 241, 0.07);
 }
-.suggestion-title { color: #e0e0f0; font-weight: 600; font-size: 0.85rem; }
-.suggestion-desc { color: #888; font-size: 0.78rem; margin-top: 4px; }
+.suggestion-title { color: #0f172a; font-weight: 700; font-size: 0.85rem; }
+.suggestion-desc { color: #475569; font-size: 0.78rem; margin-top: 4px; line-height: 1.5; }
 .suggestion-cat {
     display: inline-block; padding: 2px 8px; border-radius: 10px;
-    font-size: 0.68rem; font-weight: 600; margin-top: 6px;
+    font-size: 0.68rem; font-weight: 700; margin-top: 6px;
+    text-transform: uppercase;
 }
-.cat-improvement { background: #1a3a5c; color: #7ec8f0; }
-.cat-innovation { background: #3a1a3a; color: #c87ef0; }
-.cat-gap { background: #3a2a1a; color: #f0c87e; }
-.cat-research { background: #1a3a2a; color: #7ef0a8; }
-.cat-optimization { background: #2a2a1a; color: #e0e07e; }
+.cat-improvement { background: #e0f2fe; color: #0369a1; }
+.cat-innovation { background: #f3e8ff; color: #6d28d9; }
+.cat-gap { background: #fef3c7; color: #b45309; }
+.cat-research { background: #dcfce7; color: #15803d; }
+.cat-optimization { background: #fef08a; color: #854d0e; }
 
+/* Topic Chips */
 .topic-chip {
-    display: inline-block; background: #1e1e2e; border: 1px solid #313147;
+    display: inline-block; background: #ffffff; border: 1px solid #e2e8f0;
     border-radius: 16px; padding: 4px 12px; margin: 3px 4px 3px 0;
-    font-size: 0.75rem; color: #c0c0d0;
+    font-size: 0.75rem; color: #334155; font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.01);
 }
 
+/* Download Action Buttons (Stripe Gradient) */
 .stDownloadButton > button {
-    background: linear-gradient(135deg, #302b63, #24243e) !important;
-    color: white !important; border: 1px solid #4a45a0 !important;
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    color: white !important; border: 1px solid #4f46e5 !important;
     border-radius: 10px !important; font-weight: 600 !important;
     transition: all 0.3s ease !important;
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.15) !important;
 }
 .stDownloadButton > button:hover {
-    background: linear-gradient(135deg, #4a45a0, #302b63) !important;
-    box-shadow: 0 4px 12px rgba(74, 69, 160, 0.3) !important;
+    background: linear-gradient(135deg, #4338ca, #4f46e5) !important;
+    box-shadow: 0 6px 15px rgba(79, 70, 229, 0.3) !important;
+    transform: translateY(-1px);
 }
 
 /* Confidence Badge Styles */
@@ -523,21 +663,310 @@ div[data-testid="stMarkdownContainer"] {
     cursor: help;
     user-select: none;
     white-space: nowrap;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .confidence-badge:hover {
     transform: scale(1.07);
-    box-shadow: 0 3px 8px rgba(0,0,0,0.22);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.16);
 }
 
 .confidence-label {
     font-size: 0.70rem;
-    color: #94a3b8;
+    color: #64748b;
     font-style: italic;
     letter-spacing: 0.02em;
 }
+
+/* Sidebar Ollama Status Card styles (Light Mode Glassmorphic) */
+.status-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(8px);
+}
+.status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #3730a3 !important;
+    margin-bottom: 8px;
+}
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-connected {
+    background-color: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    animation: glow-green 2s infinite ease-in-out;
+}
+.status-disconnected {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px #ef4444;
+    animation: pulse-red 2s infinite ease-in-out;
+}
+.model-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.76rem;
+    margin-top: 6px;
+    color: #334155 !important;
+}
+.model-row span {
+    color: #334155 !important;
+}
+.model-row code {
+    background: rgba(99, 102, 241, 0.1);
+    padding: 1px 4px;
+    border-radius: 4px;
+    color: #4338ca !important;
+    font-weight: 600;
+}
+.model-badge {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+@keyframes glow-green {
+    0% { box-shadow: 0 0 2px #22c55e; }
+    50% { box-shadow: 0 0 10px #22c55e; }
+    100% { box-shadow: 0 0 2px #22c55e; }
+}
+
+/* ============================================= */
+/*  RADIO TABS — Premium Pill Style              */
+/* ============================================= */
+[data-testid="stRadio"] > div {
+    display: flex !important;
+    gap: 6px !important;
+    background: #e2e8f0;
+    border-radius: 12px;
+    padding: 4px;
+}
+[data-testid="stRadio"] > div > label {
+    flex: 1 !important;
+    text-align: center !important;
+    padding: 10px 20px !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    color: #475569 !important;
+    cursor: pointer !important;
+    transition: all 0.25s ease !important;
+    background: transparent !important;
+    border: none !important;
+    margin: 0 !important;
+}
+[data-testid="stRadio"] > div > label:hover {
+    background: rgba(99, 102, 241, 0.08) !important;
+    color: #4f46e5 !important;
+}
+[data-testid="stRadio"] > div > label[data-checked="true"],
+[data-testid="stRadio"] > div > label:has(input:checked) {
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25) !important;
+}
+/* Hide the native radio circle */
+[data-testid="stRadio"] input[type="radio"] {
+    display: none !important;
+}
+/* Hide the radio label text "Navigation" */
+[data-testid="stRadio"] > label {
+    display: none !important;
+}
+
+/* ============================================= */
+/*  CHAT INPUT BAR — Clean Focus Ring            */
+/* ============================================= */
+[data-testid="stChatInput"] {
+    border: none !important;
+    background: transparent !important;
+}
+[data-testid="stChatInput"] textarea,
+[data-testid="stChatInput"] input {
+    padding-right: 100px !important;
+    border: 2px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-radius: 12px !important;
+    font-size: 0.95rem !important;
+    font-family: 'Inter', sans-serif !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+[data-testid="stChatInput"] textarea:focus,
+[data-testid="stChatInput"] input:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15), 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+    outline: none !important;
+}
+/* Chat send button */
+[data-testid="stChatInput"] button {
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 10px !important;
+}
+
+/* ============================================= */
+/*  CHAT MESSAGES — Alignment & Spacing          */
+/* ============================================= */
+[data-testid="stChatMessage"] {
+    padding: 16px 20px !important;
+    margin-bottom: 12px !important;
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+/* User messages — slight indigo tint */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+    background: linear-gradient(135deg, #eef2ff, #f5f3ff) !important;
+    border-color: #c7d2fe !important;
+}
+/* Assistant messages */
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+}
+/* Chat avatar sizing */
+[data-testid="stChatMessage"] [data-testid^="chatAvatarIcon"] {
+    width: 32px !important;
+    height: 32px !important;
+}
+/* Message content text */
+[data-testid="stChatMessage"] .stMarkdown p {
+    color: #1e293b !important;
+    font-size: 0.95rem !important;
+    line-height: 1.7 !important;
+}
+
+/* ============================================= */
+/*  GLOBAL TEXT & HEADING COLORS                 */
+/* ============================================= */
+[data-testid="stAppViewContainer"] h1,
+[data-testid="stAppViewContainer"] h2,
+[data-testid="stAppViewContainer"] h3 {
+    color: #0f172a !important;
+    font-family: 'Inter', sans-serif !important;
+}
+[data-testid="stAppViewContainer"] p {
+    color: #334155;
+}
+
+/* ============================================= */
+/*  EXPANDER STYLING                             */
+/* ============================================= */
+[data-testid="stExpander"] {
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    overflow: hidden;
+    margin: 8px 0;
+}
+[data-testid="stExpander"] summary {
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    font-weight: 600 !important;
+    padding: 10px 16px !important;
+}
+[data-testid="stExpander"] summary:hover {
+    background: #f1f5f9 !important;
+}
+
+/* ============================================= */
+/*  SPINNER / LOADING                            */
+/* ============================================= */
+.stSpinner > div {
+    border-top-color: #6366f1 !important;
+}
+
+/* ============================================= */
+/*  DOWNLOAD BUTTONS (Main Area — NOT sidebar)   */
+/* ============================================= */
+[data-testid="stAppViewContainer"] .stDownloadButton > button {
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    color: white !important;
+    border: 1px solid #4f46e5 !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+
+/* ============================================= */
+/*  TTS BUTTON — keep its own dark style         */
+/* ============================================= */
+[data-testid="stChatMessage"] iframe {
+    border: none !important;
+}
+
+/* ============================================= */
+/*  DIVIDER                                      */
+/* ============================================= */
+[data-testid="stAppViewContainer"] hr {
+    border-color: #e2e8f0 !important;
+    margin: 16px 0 !important;
+}
+
+/* ============================================= */
+/*  RESPONSIVE — Mobile & Tablet                 */
+/* ============================================= */
+@media (max-width: 768px) {
+    .main-header {
+        padding: 1.2rem !important;
+        border-radius: 12px !important;
+    }
+    .main-header h1 {
+        font-size: 1.3rem !important;
+    }
+    .main-header p {
+        font-size: 0.82rem !important;
+    }
+    [data-testid="stRadio"] > div > label {
+        padding: 8px 12px !important;
+        font-size: 0.82rem !important;
+    }
+    [data-testid="stChatMessage"] {
+        padding: 12px 14px !important;
+    }
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .mic-overlay-btn {
+        right: 60px !important;
+        bottom: 12px !important;
+    }
+    [data-testid="stChatInput"] textarea,
+    [data-testid="stChatInput"] input {
+        padding-right: 70px !important;
+        font-size: 0.88rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-header h1 {
+        font-size: 1.1rem !important;
+    }
+    [data-testid="stRadio"] > div {
+        flex-direction: column !important;
+    }
+    [data-testid="stRadio"] > div > label {
+        text-align: center !important;
+    }
+}
+
 </style>
 """
 
@@ -919,6 +1348,7 @@ def generate_ieee_docx(content, metadata):
 # ─── SIDEBAR ───
 
 with st.sidebar:
+    render_ollama_status_sidebar()
     st.markdown("### 📁 Document Upload")
     uploaded_files = st.file_uploader(
         "Select files to process",
@@ -1051,16 +1481,18 @@ with st.sidebar:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True,
             )
+    
     if not st.session_state.get("system_ready", False):
         st.markdown(
             """
-        <div style="text-align: center; padding: 40px 20px;">
-            <h1 style="color: #a8edea; margin-bottom: 0;">AI Powered Document Q&A System</h1>
-            <p style="color: #666;">Document Research & Voice Lab</p>
+        <div style="text-align: center; padding: 30px 15px; border: 1px dashed rgba(99,102,241,0.35); border-radius: 12px; background: rgba(255,255,255,0.85); margin-top: 15px;">
+            <h3 style="color: #3730a3 !important; margin: 0; font-size: 1.05rem; font-weight: 700; font-family: 'Inter', sans-serif;">AI Document Q&A</h3>
+            <p style="color: #475569 !important; font-size: 0.78rem; margin: 4px 0 0 0; font-weight: 500; font-family: 'Inter', sans-serif;">Document Research & Voice Lab</p>
         </div>
         """,
             unsafe_allow_html=True,
         )
+
 
     if (
         st.session_state.system_ready
@@ -1077,30 +1509,31 @@ with st.sidebar:
 
 # ─── MAIN CONTENT ───
 
+
 if not st.session_state.system_ready:
     st.markdown(
         """
     <div style="text-align: center; padding: 60px 20px;">
-        <h2 style="color: #a8edea; font-weight: 600;">Welcome to the Research Lab 🧪</h2>
-        <p style="color: #888; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1e1b4b; font-weight: 800; font-size: 2.2rem; background: linear-gradient(90deg, #4f46e5, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Welcome to the Research Lab 🧪</h2>
+        <p style="color: #475569; font-size: 1.1rem; max-width: 600px; margin: 10px auto 30px auto; line-height: 1.6; font-weight: 500;">
             Upload your documents in the sidebar to begin. The system will automatically
             segment topics, generate insights, and prepare for your research questions.
         </p>
-        <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 700px; margin-left: auto; margin-right: auto;">
-            <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
-                <div style="font-size: 1.8rem;">📄</div>
-                <div style="color: #a8edea; font-size: 0.85rem; font-weight: 600; margin-top: 8px;">Document Q&A</div>
-                <div style="color: #666; font-size: 0.72rem; margin-top: 4px;">Ask any question</div>
+        <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 800px; margin-left: auto; margin-right: auto;">
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); transition: transform 0.2s ease;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">📄</div>
+                <div style="color: #0369a1; font-size: 0.95rem; font-weight: 700; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Document Q&A</div>
+                <div style="color: #64748b; font-size: 0.8rem; margin-top: 6px; font-weight: 500;">Ask factual queries & explore contents</div>
             </div>
-            <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
-                <div style="font-size: 1.8rem;">🔬</div>
-                <div style="color: #7ef0a8; font-size: 0.85rem; font-weight: 600; margin-top: 8px;">Research</div>
-                <div style="color: #666; font-size: 0.72rem; margin-top: 4px;">Propose add-ons</div>
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); transition: transform 0.2s ease;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">🔬</div>
+                <div style="color: #15803d; font-size: 0.95rem; font-weight: 700; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Research</div>
+                <div style="color: #64748b; font-size: 0.8rem; margin-top: 6px; font-weight: 500;">Propose technical additions & extensions</div>
             </div>
-            <div style="background: #1e1e2e; border: 1px solid #313147; border-radius: 12px; padding: 20px; text-align: center;">
-                <div style="font-size: 1.8rem;">📥</div>
-                <div style="color: #fed6e3; font-size: 0.85rem; font-weight: 600; margin-top: 8px;">Export</div>
-                <div style="color: #666; font-size: 0.72rem; margin-top: 4px;">Download reports</div>
+            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02); transition: transform 0.2s ease;">
+                <div style="font-size: 2.2rem; margin-bottom: 10px;">📥</div>
+                <div style="color: #b91c1c; font-size: 0.95rem; font-weight: 700; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Export</div>
+                <div style="color: #64748b; font-size: 0.8rem; margin-top: 6px; font-weight: 500;">Download complete session report files</div>
             </div>
         </div>
     </div>

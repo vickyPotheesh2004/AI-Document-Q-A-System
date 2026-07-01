@@ -231,6 +231,10 @@ class MermaidCleaner:
             if not stripped:
                 continue
 
+            # Strip trailing semicolons or inline comments on first line
+            stripped = re.sub(r';\s*$', '', stripped)
+            stripped = re.sub(r'%%.*$', '', stripped).strip()
+
             first_word = stripped.split()[0].lower()
 
             # Fix orientation: Force all graphs/flowcharts to TD (Top-Down)
@@ -240,6 +244,8 @@ class MermaidCleaner:
                     lines[i] = re.sub(r"\s(LR|RL|BT|TB)", " TD", stripped, flags=re.IGNORECASE)
                 elif stripped == "graph" or stripped == "flowchart":
                     lines[i] = stripped + " TD"
+                else:
+                    lines[i] = stripped
                 
                 # Ensure lowercase keywords
                 lines[i] = lines[i].replace("graph", "graph").replace("flowChart", "flowchart").replace("Flowchart", "flowchart")
@@ -374,6 +380,9 @@ class MermaidCleaner:
         code = code.replace("→", "-->")
         code = code.replace("⟶", "-->")
         code = code.replace("⇒", "==>")
+
+        # Fix arrows with labels ending in > (e.g. -->|label|> Node)
+        code = re.sub(r'([-~=.>]+)\s*\|([^|]+)\|\s*>\s*([a-zA-Z0-9])', r'\1|\2| \3', code)
 
         return code
 
@@ -527,9 +536,9 @@ def extract_mermaid_blocks(text: str) -> list[str]:
     """
     blocks = []
 
-    # Pattern 1 — fenced blocks: ```mermaid ... ``` - more flexible
+    # Pattern 1 — fenced blocks: ```mermaid ... ``` — strict match
     fenced = re.findall(
-        r"```(?:mermaid)?\s*?\n?(.*?)```",
+        r"```mermaid\s*\n(.*?)```",
         text,
         flags=re.DOTALL | re.IGNORECASE,
     )
@@ -641,7 +650,7 @@ window.downloadSvg = function(divId) {{
                     + 'The diagram could not be rendered within the time limit. '
                     + 'This may be due to complex or invalid syntax.'
                     + '<br><br><strong>Diagram code:</strong>'
-                    + '<pre style="background:#fef3c7;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;">'
+                    + '<pre style="background:#fef3c7;color:#78350f;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;border-radius:6px;">'
                     + code.replace(/</g,"&lt;")
                     + '</pre></div>';
             }}
@@ -662,24 +671,24 @@ window.downloadSvg = function(divId) {{
 
             mermaid.initialize({{
                 startOnLoad: true,
-                theme: "dark",
+                theme: "default",
                 themeVariables: {{
                     fontSize: "14px",
                     fontFamily: "Inter, sans-serif",
-                    darkMode: true,
-                    primaryColor: "#302b63",
-                    primaryTextColor: "#e0e0f0",
-                    primaryBorderColor: "#4a45a0",
-                    lineColor: "#8b85c8",
-                    secondaryColor: "#24243e",
-                    tertiaryColor: "#1e1e2e",
-                    edgeLabelBackground: "#24243e",
-                    textColor: "#e0e0f0",
-                    mainBkg: "#1e1e2e",
-                    nodeBorder: "#4a45a0",
-                    clusterBkg: "#24243e",
-                    clusterBorder: "#4a45a0",
-                    titleColor: "#a8edea",
+                    darkMode: false,
+                    primaryColor: "#e0e7ff",
+                    primaryTextColor: "#1e293b",
+                    primaryBorderColor: "#6366f1",
+                    lineColor: "#818cf8",
+                    secondaryColor: "#f3e8ff",
+                    tertiaryColor: "#f8fafc",
+                    edgeLabelBackground: "#ffffff",
+                    textColor: "#1e293b",
+                    mainBkg: "#e0e7ff",
+                    nodeBorder: "#6366f1",
+                    clusterBkg: "#f1f5f9",
+                    clusterBorder: "#cbd5e1",
+                    titleColor: "#4338ca",
                 }},
                 flowchart: {{ useMaxWidth: false, htmlLabels: true, curve: "basis" }},
                 mindmap: {{ useMaxWidth: false, htmlLabels: true }},
@@ -727,11 +736,11 @@ window.downloadSvg = function(divId) {{
             rendered = true;
             clearTimeout(fallbackTimer);
             document.getElementById(divId).innerHTML =
-                '<div style="color:#f87171;background:#1e1e2e;padding:15px;border-radius:8px;font-size:14px;border:1px solid #4a45a0;">'
+                '<div style="color:#b91c1c;background:#fef2f2;padding:15px;border-radius:8px;font-size:14px;border:1px solid #fca5a5;">'
                 + '<strong>⚠️ Mermaid Render Error:</strong><br>'
-                + '<span style="color:#fca5a5;">' + e.message + '</span>'
+                + '<span style="color:#dc2626;">' + e.message + '</span>'
                 + '<br><br><strong>Diagram code:</strong>'
-                + '<pre style="background:#0f0c29;color:#a8edea;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;border-radius:6px;">'
+                + '<pre style="background:#f8fafc;color:#334155;padding:10px;overflow-x:auto;font-size:12px;max-height:200px;border-radius:6px;border:1px solid #e2e8f0;">'
                 + code.replace(/</g,"&lt;")
                 + '</pre></div>';
         }}
@@ -764,10 +773,8 @@ def render_content_with_mermaid(content: str) -> None:
     import streamlit.components.v1 as components
     import json
 
-    # Split content on ```mermaid ... ``` boundaries - more flexible pattern
-    # Matches both ```mermaid and ``` with optional content after
-    # More flexible: allows for whitespace and optional newline after opening fence
-    parts = re.split(r"(```(?:mermaid)?\s*?\n?.*?```)", content, flags=re.DOTALL | re.IGNORECASE)
+    # Split content on ```mermaid ... ``` boundaries - ONLY match mermaid blocks
+    parts = re.split(r"(```mermaid\s*\n.*?```)", content, flags=re.DOTALL | re.IGNORECASE)
 
     # Inject Mermaid CDN once per session
     if "mermaid_cdn_injected" not in st.session_state:
@@ -781,13 +788,13 @@ def render_content_with_mermaid(content: str) -> None:
         if not part:
             continue
 
-        # Detect if this segment is a mermaid block - more flexible pattern
-        is_mermaid = bool(re.match(r"^```(?:mermaid)?\s*?\n?", part, re.IGNORECASE))
+        # Detect if this segment is a mermaid block - strict match
+        is_mermaid = bool(re.match(r"^```mermaid\s*\n", part, re.IGNORECASE))
 
         if is_mermaid:
-            # Extract raw code (strip fences) - more flexible pattern
-            raw_code = re.sub(r"^```(?:mermaid)?\s*?\n?", "", part, flags=re.IGNORECASE)
-            raw_code = re.sub(r"\n?```\s*$", "", raw_code, flags=re.IGNORECASE)
+            # Extract raw code (strip fences)
+            raw_code = re.sub(r"^```mermaid\s*\n?", "", part, flags=re.IGNORECASE)
+            raw_code = re.sub(r"\n?```\s*$", "", raw_code)
 
             # Clean the code
             cleaned = MermaidCleaner.clean(raw_code)

@@ -9,6 +9,7 @@ ResearchHelp-AI Analysis System is a next-generation, multi-modal document analy
 - **[NEW] 100% Local Inference & Total Privacy**: Zero data leaves your machine. Upload confidential documents, patents, and private code bases with complete security.
 - **[NEW] Smart Local Model Routing**: Automatically distributes workloads across three specialized local LLMs (Llama 3.1 8B, Qwen 2.5 3B, Gemma 3 4B) depending on task complexity and type.
 - **[NEW] Zero API Costs & Unlimited Queries**: Replaced expensive cloud APIs with local Ollama endpoints. Run millions of tokens without paying a single cent or hitting rate limits.
+- **[NEW] Local LLM Health Dashboard**: A real-time, glassmorphic status card integrated into the sidebar that detects Ollama connection status and lists active loaded models.
 - **Dynamic 44-Domain Adaptation**: The system automatically detects research domains (e.g., Quantum Computing, Software Engineering, Bioinformatics) in your queries and documents, instantly injecting expert-level analytical frameworks, formatting rules (like LaTeX or architectural paradigms), and specialized lenses into its responses.
 - **🎓 IEEE Official Paper Generator**: Synthesize academic manuscripts complete with Abstracts, Literature Reviews, and Methodologies, auto-formatted into professional Times New Roman, two-column style `.docx` files.
 - **🧪 Simple English Deep Analysis**: Specialized research mode that breaks down complex domains into simple, jargon-free English using real-world analogies.
