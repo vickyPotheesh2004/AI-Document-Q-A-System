@@ -9,6 +9,36 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+__all__ = [
+    # Paths
+    "TESSERACT_PATH", "CHROMA_DB_PATH",
+    # Models
+    "OLLAMA_BASE_URL", "OLLAMA_PRIMARY_MODEL", "OLLAMA_CODING_MODEL", "OLLAMA_REASONING_MODEL",
+    "DEFAULT_LLM_MODEL", "RESEARCH_LLM_MODEL", "MERMAID_MODEL", "STANDARD_MODEL",
+    "REASONING_MODELS", "INTENT_CLASSIFIER_MODEL",
+    # LLM Parameters
+    "TOPIC_TEXT_CHUNK_SIZE", "RESEARCH_OVERVIEW_MAX_TOKENS", "RESEARCH_OVERVIEW_TEMPERATURE",
+    "RESEARCH_SUGGESTIONS_MAX_TOKENS", "RESEARCH_SUGGESTIONS_TEMPERATURE",
+    "RESEARCH_ADDON_MAX_TOKENS", "RESEARCH_ADDON_TEMPERATURE",
+    "QA_MAX_TOKENS", "QA_TEMPERATURE", "INTENT_MAX_TOKENS", "INTENT_TEMPERATURE", "INTENT_TIMEOUT",
+    # Retrieval
+    "SEMANTIC_SEARCH_WEIGHT", "BM25_SEARCH_WEIGHT", "DEFAULT_TOP_K",
+    "TOPIC_SIMILARITY_THRESHOLD", "TOPIC_SEGMENT_OVERLAP",
+    "TOPIC_SUMMARY_SENTENCES", "TOPIC_KEYWORDS_COUNT", "TOPIC_MIN_SEGMENT_WORDS",
+    "USE_ENHANCED_PIPELINE", "INTENT_CACHE_MAX_SIZE",
+    # Performance
+    "THREAD_POOL_MAX_WORKERS", "RETRIEVAL_TIMEOUT", "INTENT_TIMEOUT_SECONDS",
+    "CHAT_HISTORY_CONTEXT_SIZE",
+    # Embeddings & Limits
+    "EMBEDDING_MODEL", "MAX_FILE_SIZE", "MAX_TEXT_LENGTH",
+    # Security & API
+    "APP_PASSWORD",
+    # Logging
+    "LOG_LEVEL", "VERBOSE_ERRORS",
+    # Functions
+    "validate_config",
+]
+
 # ==================== PATHS ====================
 
 # Tesseract OCR path - configurable via environment variable
@@ -28,11 +58,11 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 # Model 1: Llama 3.1 8B — Primary general-purpose model
 OLLAMA_PRIMARY_MODEL = os.getenv("OLLAMA_PRIMARY_MODEL", "llama3.1:8b")
 
-# Model 2: Qwen 2.5 3B — Coding & diagram generation (always used for Mermaid)
-OLLAMA_CODING_MODEL = os.getenv("OLLAMA_CODING_MODEL", "qwen2.5:3b")
+# Model 2: Llama 3.1 8B — Coding & diagram generation (always used for Mermaid)
+OLLAMA_CODING_MODEL = os.getenv("OLLAMA_CODING_MODEL", "llama3.1:8b")
 
-# Model 3: Gemma 3 4B — Advanced reasoning & deep analysis
-OLLAMA_REASONING_MODEL = os.getenv("OLLAMA_REASONING_MODEL", "gemma3:4b")
+# Model 3: Llama 3.1 8B — Advanced reasoning & deep analysis
+OLLAMA_REASONING_MODEL = os.getenv("OLLAMA_REASONING_MODEL", "llama3.1:8b")
 
 # Default LLM model for general Q&A
 DEFAULT_LLM_MODEL = OLLAMA_PRIMARY_MODEL

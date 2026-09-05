@@ -1,7 +1,6 @@
 import re
 import threading
 from collections import OrderedDict
-from dotenv import load_dotenv
 from src.config import (
     INTENT_CACHE_MAX_SIZE,
     INTENT_MAX_TOKENS,
@@ -11,8 +10,6 @@ from src.config import (
 )
 from src.llm_client import get_llm_client
 from src.logging_utils import get_logger
-
-load_dotenv()
 
 # Get logger - this ensures logging is configured
 logger = get_logger(__name__)
@@ -164,7 +161,7 @@ class IntentClassifier:
         )
 
         try:
-            # Use create_fast_completion for GLM 4.5 Air - fastest model for simple classification
+            # Use create_fast_completion — llama3.1:8b for fast classification
             response = self.llm_client.create_fast_completion(
                 messages=[
                     {"role": "system", "content": system_prompt},

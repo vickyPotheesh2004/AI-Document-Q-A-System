@@ -1,4 +1,4 @@
-﻿# Virtual Environments
+# Virtual Environments
 venv/
 env/
 ENV/
@@ -21,5 +21,3 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
-#API Keys and Secrets
-.env

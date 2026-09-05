@@ -1,39 +1,30 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import hmac
 import io
 import re
 import os
+import requests
 from datetime import datetime
 from docx import Document as DocxDocument
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from src.extractor import process_file
+from src.extractor import process_file, sanitize_filename
 from src.qa_engine import QAEngine
-from src.config import validate_config, APP_PASSWORD
+from src.config import validate_config, APP_PASSWORD, LOG_LEVEL
 from src.logging_utils import setup_logging
 import time
 from src.mermaid_renderer import MermaidCleaner, MermaidValidator, MERMAID_HTML_TEMPLATE, MERMAID_CDN, render_content_with_mermaid
 
-# Initialize logging at application startup
-setup_logging()
+# Initialize logging at application startup with configured level
+setup_logging(level=LOG_LEVEL)
 
 # Maximum chat input length to prevent abuse
 MAX_CHAT_INPUT_LENGTH = 2000
 
 
-def sanitize_filename(filename: str) -> str:
-    """Sanitize uploaded filename to prevent path traversal attacks."""
-    # Remove any path components
-    filename = os.path.basename(filename)
-    # Remove any special characters except alphanumeric, underscore, hyphen, and dot
-    filename = re.sub(r"[^\w\s.-]", "", filename)
-    # Limit filename length
-    max_length = 200
-    if len(filename) > max_length:
-        name, ext = os.path.splitext(filename)
-        filename = name[: max_length - len(ext)] + ext
-    return filename or "unnamed_file"
+# sanitize_filename is imported from src.extractor to avoid duplication
 
 
 def sanitize_for_markdown(text: str) -> str:
@@ -85,7 +76,7 @@ def render_confidence_badge(confidence: dict) -> None:
     st.markdown(badge_html, unsafe_allow_html=True)
 
 
-def strip_image_prompts(text: str) -> str:
+def strip_image_prompts(text: str) -> str:  # noqa: D401
     """Remove <image_prompt>...</image_prompt> tags from content so images don't appear in chat."""
     if not text:
         return text
@@ -114,7 +105,7 @@ def _clean_for_speech(text):
     return text.strip()
 
 
-def render_mic_input():
+def render_mic_input() -> None:
     """Renders a compact mic input button."""
     if st.button("🎙️", help="Click to speak your question", key="mic_btn_compact"):
         try:
@@ -140,7 +131,7 @@ def render_mic_input():
             st.warning(f"🎙️ Error: {str(e)}")
 
 
-def speak_text(text, key):
+def speak_text(text: str, key: str) -> None:
     clean = _clean_for_speech(text)
     safe = (
         clean.replace("\\", "\\\\")
@@ -214,9 +205,8 @@ def speak_text(text, key):
     components.html(html, height=45)
 
 
-def render_ollama_status_sidebar():
+def render_ollama_status_sidebar() -> None:
     """Queries local Ollama tags API to render a beautiful real-time status card in the sidebar."""
-    import requests
     from src.config import OLLAMA_BASE_URL, OLLAMA_PRIMARY_MODEL, OLLAMA_CODING_MODEL, OLLAMA_REASONING_MODEL
     
     connected = False
@@ -287,17 +277,19 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Validate configuration on startup
-is_valid, config_errors = validate_config()
+# Validate configuration on startup (cached to avoid blocking every rerun)
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_validate_config():
+    return validate_config()
+
+is_valid, config_errors = _cached_validate_config()
 if not is_valid:
     st.error("⚠️ Configuration Error:")
     for error in config_errors:
         st.error(f"  • {error}")
     st.info(
-        "Please make sure Ollama is running (`ollama serve`) and the required models are pulled:\n"
-        "• `ollama pull llama3.1:8b`\n"
-        "• `ollama pull qwen2.5:3b`\n"
-        "• `ollama pull gemma3:4b`"
+        "Please make sure Ollama is running (`ollama serve`) and the required model is pulled:\n"
+        "• `ollama pull llama3.1:8b`"
     )
     st.stop()
 
@@ -323,7 +315,7 @@ if APP_PASSWORD:
             st.warning("⚠️ **Security Notice:** The system runs on local Ollama LLMs. Access is restricted.", icon="🔒")
             pwd_input = st.text_input("Enter Password", type="password")
             if st.button("Access System", use_container_width=True):
-                if pwd_input == APP_PASSWORD:
+                if hmac.compare_digest(pwd_input, APP_PASSWORD):
                     st.session_state.authenticated = True
                     st.rerun()
                 else:

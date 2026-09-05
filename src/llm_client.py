@@ -4,8 +4,8 @@ This module provides a singleton client for local Ollama LLMs.
 
 Model Routing:
   - llama3.1:8b   → Primary (Q&A, intent classification, general tasks)
-  - qwen2.5:3b    → Coding (Mermaid diagrams — always)
-  - gemma3:4b     → Advanced reasoning (deep analysis, IEEE papers)
+  - llama3.1:8b   → Coding (Mermaid diagrams)
+  - llama3.1:8b   → Advanced reasoning (deep analysis, IEEE papers)
 """
 
 import os
@@ -21,7 +21,7 @@ from tenacity import (
     retry_if_exception_type,
     before_sleep_log,
 )
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: F401 — retained for reference; config.py handles .env loading
 
 # Import logging utility
 from src.logging_utils import get_logger
@@ -33,8 +33,6 @@ from src.config import (
     OLLAMA_CODING_MODEL,
     OLLAMA_REASONING_MODEL,
 )
-
-load_dotenv(override=True)
 
 # Get logger - this ensures logging is configured
 logger = get_logger(__name__)
@@ -102,12 +100,12 @@ class LLMClient:
 
     @property
     def coding_model(self) -> str:
-        """Qwen 2.5 3B — coding & Mermaid diagrams."""
+        """Llama 3.1 8B — coding & Mermaid diagrams."""
         return OLLAMA_CODING_MODEL
 
     @property
     def reasoning_model(self) -> str:
-        """Gemma 3 4B — advanced reasoning & deep analysis."""
+        """Llama 3.1 8B — advanced reasoning & deep analysis."""
         return OLLAMA_REASONING_MODEL
 
     # Backwards-compatible aliases used by other modules

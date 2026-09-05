@@ -1,4 +1,4 @@
-﻿import io
+import io
 import re
 import fitz
 import docx
@@ -16,21 +16,22 @@ logger = get_logger(__name__)
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
 # File signature mappings for MIME type detection (magic bytes)
-FILE_SIGNATURES = {
+# NOTE: Using a list of tuples because DOCX and XLSX share the same magic bytes (PK\x03\x04)
+FILE_SIGNATURES = [
     # PDF signature
-    b'%PDF': 'application/pdf',
+    (b'%PDF', 'application/pdf'),
     # PNG signature
-    b'\x89PNG': 'image/png',
+    (b'\x89PNG', 'image/png'),
     # JPEG signatures
-    b'\xff\xd8\xff': 'image/jpeg',
+    (b'\xff\xd8\xff', 'image/jpeg'),
     # DOCX (ZIP-based - PK signature)
-    b'PK\x03\x04': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    # XLSX (ZIP-based)
-    b'PK\x03\x04': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    (b'PK\x03\x04', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    # XLSX (ZIP-based — same magic bytes, differentiated by internal structure)
+    (b'PK\x03\x04', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     # Text files (UTF-8 BOM)
-    b'\xef\xbb\xbf': 'text/plain',
+    (b'\xef\xbb\xbf', 'text/plain'),
     # CSV typically starts with text
-}
+]
 
 # Allowed MIME types mapping to extensions
 ALLOWED_MIME_TYPES = {

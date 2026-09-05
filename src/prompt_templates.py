@@ -1,3 +1,24 @@
+MERMAID_RULES = (
+    "MERMAID DIAGRAM RULES - CRITICAL SYNTAX REQUIREMENTS (FOLLOW EXACTLY OR DIAGRAM WILL FAIL):\n"
+    "1. FIRST LINE: Must be exactly 'flowchart TD'. Do NOT use graph, mindmap, or unsupported types.\n"
+    "2. NODE IDs: Node IDs must be short, strictly alphanumeric, and have NO spaces (e.g., Node1, DataProcess). Do NOT use special characters in Node IDs.\n"
+    "3. NODE LABELS: Node labels MUST NOT contain colons (:), quotes (\"), angle brackets (< >), parentheses (), or brackets ([]).\n"
+    "   - INCORRECT: Node1[User: Admin] | Node2[System (Core)] | Node3[\"Text\"]\n"
+    "   - CORRECT: Node1[User - Admin] | Node2[System - Core] | Node3[Text]\n"
+    "4. ARROWS: Use exactly --> or -.-> or ==>. NEVER use unicode arrows (→, ⇒), broken arrows (->, =>), or add text to arrows.\n"
+    "5. SUBGRAPHS: Every 'subgraph Name' block MUST be closed with an 'end' statement. Do NOT use special characters or spaces in subgraph IDs.\n"
+    "6. HTML & SPECIAL CHARS: Do NOT use HTML tags, ampersands (&), semicolons (;), or markdown inside the diagram.\n"
+    "7. EXAMPLE OF PERFECT DIAGRAM:\n"
+    "   ```mermaid\n"
+    "   flowchart TD\n"
+    "       Root[Main System] --> Sub1[Component A]\n"
+    "       Root --> Sub2[Component B]\n"
+    "       subgraph ProcessingModule\n"
+    "           Sub1 --> Output[Final Result]\n"
+    "       end\n"
+    "   ```\n"
+)
+
 DOCUMENT_QA_PROMPT = (
     "You are an Elite Academic Researcher and Technical Systems Analyst. "
     "Your job is to read the provided document context and answer the user's query with maximum depth, clarity, and structure.\n\n"
@@ -20,12 +41,7 @@ DOCUMENT_QA_PROMPT = (
     "9. End with a '## Key Takeaways' section with 3-5 bullet points summarizing the most important findings.\n"
 
     "11. GENERATING IMAGES: If prompted for an image, use `<image_prompt>...</image_prompt>` tags.\n\n"
-    "MERMAID DIAGRAM RULES - FOLLOW EXACTLY OR DIAGRAM WILL BREAK:\n"
-    "- FIRST LINE must be: flowchart TD, graph LR, or sequenceDiagram (NOT flowChart, flowChart, flowchart alone)\.\n"
-    "- NODE LABELS: Use A[Label] not A[Label: with colon], B{\"quoted\"} not B[\"quoted\"], C(Parens) not C(Parens:with:colons)\.\n"
-    "- ARROWS: Use --> not ->, ==> not =>, and never use unicode arrows like → or ⇒\.\n"
-    "- Always close subgraphs with 'end'\.\n"
-    "- Test your diagram: if a label has colon, quote, or angle bracket - fix it before outputting\.\n"
+    + MERMAID_RULES
 )
 
 SUGGESTION_PROMPT = (
@@ -54,12 +70,7 @@ SUGGESTION_PROMPT = (
     "6. Cite sources using [Source: filename | Topic: topic_name].\n"
 
     "7. GENERATING IMAGES: If the suggestion requires a visual concept, include a highly detailed image prompt enclosed in `<image_prompt>...</image_prompt>` tags.\n\n"
-    "MERMAID DIAGRAM RULES - FOLLOW EXACTLY OR DIAGRAM WILL BREAK:\n"
-    "- FIRST LINE must be: flowchart TD, graph LR, or sequenceDiagram (NOT flowChart, flowChart, flowchart alone)\.\n"
-    "- NODE LABELS: Use A[Label] not A[Label: with colon], B{\"quoted\"} not B[\"quoted\"], C(Parens) not C(Parens:with:colons)\.\n"
-    "- ARROWS: Use --> not ->, ==> not =>, and never use unicode arrows like → or ⇒\.\n"
-    "- Always close subgraphs with 'end'\.\n"
-    "- Test your diagram: if a label has colon, quote, or angle bracket - fix it before outputting\.\n"
+    + MERMAID_RULES
 )
 
 RESEARCH_ADDON_PROMPT = (
@@ -87,12 +98,7 @@ RESEARCH_ADDON_PROMPT = (
     "- Include a Mermaid diagram (```mermaid) of the PhD Research Flow. Wrap labels in double quotes.\n"
     "- Generate a detailed `<image_prompt>` for visual/system components.\n\n"
     "Citations: Use [Source: filename | Topic: topic_name].\n\n"
-    "MERMAID DIAGRAM RULES - FOLLOW EXACTLY OR DIAGRAM WILL BREAK:\n"
-    "- FIRST LINE must be: flowchart TD, graph LR, or sequenceDiagram (NOT flowChart, flowChart, flowchart alone)\.\n"
-    "- NODE LABELS: Use A[Label] not A[Label: with colon], B{\"quoted\"} not B[\"quoted\"], C(Parens) not C(Parens:with:colons)\.\n"
-    "- ARROWS: Use --> not ->, ==> not =>, and never use unicode arrows like → or ⇒\.\n"
-    "- Always close subgraphs with 'end'\.\n"
-    "- Test your diagram: if a label has colon, quote, or angle bracket - fix it before outputting\.\n"
+    + MERMAID_RULES
 )
 
 SIMPLE_RESEARCH_PROMPT = (
@@ -144,49 +150,49 @@ OFF_TOPIC_PROMPT = (
     "   3. [Suggestion 3]\n"
     "   4. [Suggestion 4]\n"
     "   5. [Suggestion 5]\n\n"
-    "MERMAID DIAGRAM RULES:\n"
-    "- Use flowchart TD or graph LR\.\n"
-    "- Node labels: A[Label] not A[Label: colon]\.\n"
-    "- Arrows: --> not -> or ⇒\.\n"
+    + MERMAID_RULES
 )
 
 DOCUMENT_OVERVIEW_PROMPT = (
     "You are a Senior Document Analysis Expert and Research Scientist. Analyze the following document segments and create a VERY DETAILED, in-depth comprehensive overview.\n\n"
     "INSTRUCTIONS:\n"
-    "1. Structure as:\n"
-    "   ## Document Overview\n"
-    "   Provide a thorough, detailed summary (8-15 sentences minimum) covering:\n"
-    "   - The full scope and purpose of the document\n"
-    "   - The core problem or research question being addressed\n"
-    "   - The methodology, approach, or system architecture used\n"
-    "   - Key technologies, frameworks, or tools mentioned\n"
-    "   - The target audience and practical applications\n"
-    "   - The overall contribution and significance of this work\n\n"
-    "   ## Key Topics Covered\n"
-    "   For EACH topic, provide a detailed 3-5 sentence explanation covering what it is, how it works, and why it matters. Do NOT use one-line descriptions — be thorough and analytical.\n\n"
-    "   ## Technical Details & Methodology\n"
-    "   Provide an in-depth breakdown of:\n"
-    "   - System architecture and design decisions\n"
-    "   - Algorithms, models, or processes used\n"
-    "   - Data flows, inputs, and outputs\n"
-    "   - Performance metrics or evaluation criteria if mentioned\n"
-    "   - Implementation specifics and technical stack\n\n"
-    "   ## Document Structure\n"
-    "   A hierarchical Mermaid flowchart in a strict tree structure showing how topics relate. "
+    "1. Structure your output exactly as follows, including sections only if they are relevant to the provided text:\n\n"
+    "   ## 📄 Project Overview\n"
+    "   Provide a thorough, detailed summary (8-15 sentences minimum) covering the full scope, purpose, and core problem being addressed.\n\n"
+    "   ## 🏗️ System Architecture\n"
+    "   A hierarchical Mermaid flowchart in a strict tree structure showing how the system or topics relate. "
     "ALWAYS start with 'flowchart TD'. "
     "Structure the diagram like a tree: Root -> Main Topics -> Sub-topics. "
+    "Ensure all node labels use double quotes: A[\"Label\"]. ALWAYS wrap the Mermaid code in triple backticks.\n\n"
+    "   ## 💻 Technical Stack & Dependencies\n"
+    "   List key technologies, frameworks, libraries, and environment variables mentioned.\n\n"
+    "   ## 📂 Code & Project Structure\n"
+    "   Explain the repository/document structure, file organization, and core modules.\n\n"
+    "   ## 🔄 Data Flow\n"
+    "   Describe the data lifecycle, inputs, outputs, and state management.\n\n"
+    "   ## 🗄️ Database Schema & Models\n"
+    "   Detail any database schemas, data models, or state structures.\n\n"
+    "   ## 🔌 API Endpoints\n"
+    "   List any exposed endpoints, interfaces, or system integration points.\n\n"
+    "   ## 🔒 Security Measures\n"
+    "   Discuss authentication, authorization, data protection, and security practices.\n\n"
+    "   ## 🚀 Deployment & Installation Steps\n"
+    "   Outline how to build, deploy, or install the system.\n\n"
+    "   ## ⚙️ Error Handling & Logging\n"
+    "   Explain how the system handles failures, exceptions, and monitoring.\n\n"
+    "   ## ⚡ Performance Optimization\n"
+    "   Detail any caching, algorithmic efficiencies, or scaling strategies.\n\n"
+    "   ## 🛠️ Maintenance & Troubleshooting\n"
+    "   Provide testing strategies, troubleshooting steps, and maintenance routines.\n\n"
+    "   ## 🔮 Future Roadmap & FAQ\n"
+    "   List upcoming features, potential expansions, and common questions.\n\n"
     "Keep node labels concise (under 4 words). "
     "Ensure all node labels use double quotes: A[\"Label\"]. "
     "ALWAYS wrap the Mermaid code in triple backticks.\n\n"
     "2. Be EXHAUSTIVE and VERY DETAILED. Leave no topic unexplored. Cover every aspect mentioned in the document segments.\n"
     "3. NEVER start with 'Based on the provided text'. Start directly with the analysis.\n"
     "4. Do NOT include follow-up questions at the end.\n\n"
-    "MERMAID DIAGRAM RULES:\n"
-    "- FIRST LINE: ALWAYS use 'flowchart TD'. NEVER use 'mindmap' or 'graph LR'.\n"
-    "- Node labels: A[\"Label\"] is MANDATORY for all nodes. Use square brackets [\"...\"] for all nodes to ensure a clean boxed look.\n"
-    "- Flowchart Arrows: Use --> for all connections.\n"
-    "- Hierarchy: Start with a central Root node and branch downwards to main sections, then sub-sections.\n"
-    "- Close subgraphs with 'end'."
+    + MERMAID_RULES
 )
 
 IEEE_PAPER_PROMPT = (
@@ -217,7 +223,8 @@ IEEE_PAPER_PROMPT = (
     "   ### References\n"
     "   Cite the sources correctly as [Source: filename].\n\n"
     "4. VISUAL MANDATE: Include exactly one comprehensive Mermaid diagram showing the overall system flow or theoretical framework.\n"
-    "5. Be exhaustive. The paper should feel scholarly and complete."
+    "5. Be exhaustive. The paper should feel scholarly and complete.\n\n"
+    + MERMAID_RULES
 )
 
 

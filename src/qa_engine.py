@@ -3,7 +3,6 @@ import json
 import atexit
 import chromadb
 import re
-from dotenv import load_dotenv
 from tenacity import retry, retry_if_exception_type, wait_exponential, stop_after_attempt
 from concurrent.futures import ThreadPoolExecutor
 from rank_bm25 import BM25Okapi
@@ -16,8 +15,6 @@ from src.config import CHROMA_DB_PATH, DEFAULT_TOP_K, THREAD_POOL_MAX_WORKERS, R
 from src.llm_client import get_llm_client
 from src.confidence_scorer import ConfidenceScorer
 from src.logging_utils import get_logger
-
-load_dotenv(override=True)
 
 # Get logger - this ensures logging is configured
 logger = get_logger(__name__)
