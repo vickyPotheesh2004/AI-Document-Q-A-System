@@ -165,11 +165,9 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 3. Pull the Local LLMs
+### 3. Pull the Local LLM
 ```bash
 ollama pull llama3.1:8b
-ollama pull qwen2.5:3b
-ollama pull gemma3:4b
 ```
 
 ### 4. Configure Environment Variables
@@ -237,4 +235,4 @@ python test_pipeline.py
   Yes, modify `OLLAMA_PRIMARY_MODEL` in `.env` (e.g., to `mistral` or `qwen2.5`). Just ensure it is pulled in Ollama first.
 
 ---
-Built with ❤️ and Python.
+Built with ❤️ AI Used the Python.
